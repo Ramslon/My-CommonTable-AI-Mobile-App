@@ -5,6 +5,7 @@ import 'package:commontable_ai_app/presentation/screens/nutrition_plan_screen.da
 import 'package:commontable_ai_app/presentation/screens/progress_dashboard_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/settings_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/food_identification_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/real_chatbot_screen.dart' as chat;
 
 class AppRoutes {
   static const String onboarding = '/onboarding';
@@ -22,12 +23,7 @@ class AppRoutes {
       case home:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
       case chatbot:
-        return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Chatbot')),
-            body: const Center(child: Text('Chatbot Coming Soon!')),
-          ),
-        );
+        return MaterialPageRoute(builder: (_) => const chat.RealChatbotScreen());
       case nutritionAnalysis:
         return MaterialPageRoute(
           builder: (_) => const FoodIdentificationScreen(),

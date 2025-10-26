@@ -30,6 +30,7 @@ class CommontableAIApp extends StatelessWidget {
         AppRoutes.onboarding: (context) => const OnboardingScreen(),
         AppRoutes.home: (context) => const HomeScreen(),
       },
+      onGenerateRoute: AppRoutes.generateRoute,
     );
   }
 }
