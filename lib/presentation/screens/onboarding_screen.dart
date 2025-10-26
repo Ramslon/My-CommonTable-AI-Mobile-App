@@ -125,6 +125,14 @@ class _OnboardingCard extends StatelessWidget {
 
   const _OnboardingCard({required this.page});
 
+  IconData _getIconForPage(String title) {
+    if (title.contains('Welcome')) return Icons.restaurant;
+    if (title.contains('Meal Plans')) return Icons.restaurant_menu;
+    if (title.contains('AI Nutrition')) return Icons.chat_bubble_outline;
+    if (title.contains('Track Progress')) return Icons.show_chart;
+    return Icons.food_bank;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -133,9 +141,10 @@ class _OnboardingCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Expanded(
-            child: Image.asset(
-              page.imagePath,
-              fit: BoxFit.contain,
+            child: Icon(
+              _getIconForPage(page.title),
+              size: 120,
+              color: Colors.green.shade400,
             ),
           ),
           const SizedBox(height: 20),

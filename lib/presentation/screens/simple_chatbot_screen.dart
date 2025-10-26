@@ -1,23 +1,18 @@
 import 'package:flutter/material.dart';
 
-class ProgressScreen extends StatefulWidget {
-  const ProgressScreen({super.key});
+class ChatbotScreen extends StatelessWidget {
+  const ChatbotScreen({super.key});
 
-  @override
-  State<ProgressScreen> createState() => _ProgressScreenState();
-}
-
-class _ProgressScreenState extends State<ProgressScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Progress Tracker',
+          'AI Nutrition Chatbot',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.purple,
+        backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -30,13 +25,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.show_chart,
+                  Icons.chat_bubble_outline,
                   size: 80,
-                  color: Colors.purple,
+                  color: Colors.blue,
                 ),
                 SizedBox(height: 20),
                 Text(
-                  'Progress Tracker',
+                  'AI Nutrition Chatbot',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -46,7 +41,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 ),
                 SizedBox(height: 10),
                 Text(
-                  'Visualize your nutrition and health journey over time.',
+                  'Chat with your personal nutrition assistant for guidance.',
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.black54,
@@ -58,7 +53,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   'Coming Soon!',
                   style: TextStyle(
                     fontSize: 18,
-                    color: Colors.purple,
+                    color: Colors.blue,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

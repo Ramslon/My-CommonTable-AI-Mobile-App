@@ -35,7 +35,7 @@ class HomeScreen extends StatelessWidget {
         description: 'Visualize your nutrition and health journey over time.',
         icon: Icons.show_chart,
         color: Colors.purple.shade400,
-        route: AppRoutes.progress,
+        route: AppRoutes.progressDashboard,
       ),
     ];
 
