@@ -4,7 +4,7 @@ import 'package:commontable_ai_app/presentation/screens/home_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/nutrition_plan_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/progress_dashboard_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/settings_screen.dart';
-import 'package:commontable_ai_app/presentation/screens/food_identification_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/nutrition_analysis_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/real_chatbot_screen.dart' as chat;
 import 'package:commontable_ai_app/presentation/screens/student_features_screen.dart';
 
@@ -28,7 +28,7 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const chat.RealChatbotScreen());
       case nutritionAnalysis:
         return MaterialPageRoute(
-          builder: (_) => const FoodIdentificationScreen(),
+          builder: (_) => const NutritionAnalysisScreen(),
         );
       case mealPlans:
         return MaterialPageRoute(builder: (_) => const NutritionPlanScreen());

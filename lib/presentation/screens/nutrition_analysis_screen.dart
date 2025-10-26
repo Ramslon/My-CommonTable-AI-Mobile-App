@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
+import 'package:commontable_ai_app/core/services/health_sync_service.dart';
 
 class NutritionAnalysisScreen extends StatefulWidget {
   const NutritionAnalysisScreen({super.key});
@@ -9,113 +14,169 @@ class NutritionAnalysisScreen extends StatefulWidget {
 }
 
 class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
-  bool _isLoading = false;
-  Map<String, dynamic>? _nutritionData;
+  bool _loading = false;
+  bool _loadingFirestore = false;
+  String? _aiSummary;
 
-  Future<void> _simulateImageAnalysis() async {
-    setState(() => _isLoading = true);
+  // Daily intake vs recommended targets
+  Map<String, double> _intake = {
+    'Calories (kcal)': 1800,
+    'Protein (g)': 55,
+    'Carbs (g)': 230,
+    'Fat (g)': 65,
+    'Fiber (g)': 22,
+    'Sodium (mg)': 2600,
+  };
+  final Map<String, double> _recommended = const {
+    'Calories (kcal)': 2000,
+    'Protein (g)': 50,
+    'Carbs (g)': 275,
+    'Fat (g)': 70,
+    'Fiber (g)': 28,
+    'Sodium (mg)': 2300,
+  };
 
-    // 🧠 TODO: Replace this simulated delay + mock data
-    // with a real API call to your AI nutrition service.
-    await Future.delayed(const Duration(seconds: 2));
+  final _insightsService = NutritionInsightsService();
+  final _healthService = HealthSyncService();
 
-    // Example mock AI response
-    final mockResponse = {
-      'food': 'Grilled Chicken with Rice',
-      'calories': 420,
-      'protein': 35,
-      'carbs': 45,
-      'fat': 10,
-      'micronutrients': {'Iron': '12%', 'Vitamin B6': '30%', 'Vitamin C': '8%'},
-    };
+  @override
+  void initState() {
+    super.initState();
+    _loadFromFirestore();
+  }
 
+  Future<void> _loadFromFirestore() async {
+    setState(() => _loadingFirestore = true);
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      final firestore = FirebaseFirestore.instance;
+
+      // Try to fetch the most recent daily intake
+      final snap = await firestore
+          .collection('nutritionIntake')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        final data = snap.docs.first.data();
+        // Expecting fields matching our keys; fallback to current values if missing
+        setState(() {
+          _intake = {
+            'Calories (kcal)': (data['calories'] ?? _intake['Calories (kcal)']).toDouble(),
+            'Protein (g)': (data['protein'] ?? _intake['Protein (g)']).toDouble(),
+            'Carbs (g)': (data['carbs'] ?? _intake['Carbs (g)']).toDouble(),
+            'Fat (g)': (data['fat'] ?? _intake['Fat (g)']).toDouble(),
+            'Fiber (g)': (data['fiber'] ?? _intake['Fiber (g)']).toDouble(),
+            'Sodium (mg)': (data['sodium'] ?? _intake['Sodium (mg)']).toDouble(),
+          };
+        });
+      }
+    } catch (e) {
+      // Silent fallback to demo values
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Using demo nutrition data (${e.toString()})')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingFirestore = false);
+    }
+  }
+
+  Future<void> _analyzeWithAI() async {
     setState(() {
-      _nutritionData = mockResponse;
-      _isLoading = false;
+      _loading = true;
+      _aiSummary = null;
     });
+    try {
+      final summary = await _insightsService.generateInsights(intake: _intake);
+      if (mounted) setState(() => _aiSummary = summary);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _aiSummary = 'Failed to generate insights: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _syncFromHealth() async {
+    setState(() => _loadingFirestore = true);
+    try {
+      final pulled = await _healthService.pullNutrition();
+      if (pulled.isNotEmpty) {
+        setState(() {
+          _intake = {
+            'Calories (kcal)': pulled['calories']?.toDouble() ?? _intake['Calories (kcal)']!,
+            'Protein (g)': pulled['protein']?.toDouble() ?? _intake['Protein (g)']!,
+            'Carbs (g)': pulled['carbs']?.toDouble() ?? _intake['Carbs (g)']!,
+            'Fat (g)': pulled['fat']?.toDouble() ?? _intake['Fat (g)']!,
+            'Fiber (g)': pulled['fiber']?.toDouble() ?? _intake['Fiber (g)']!,
+            'Sodium (mg)': pulled['sodium']?.toDouble() ?? _intake['Sodium (mg)']!,
+          };
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Health sync not configured: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingFirestore = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Food Identification'),
+        title: const Text('Nutrition Analysis'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            onPressed: _loadingFirestore ? null : _loadFromFirestore,
+            tooltip: 'Load from Firestore',
+            icon: const Icon(Icons.cloud_download_outlined),
+          ),
+          IconButton(
+            onPressed: _loadingFirestore ? null : _syncFromHealth,
+            tooltip: 'Sync from HealthKit/Google Fit',
+            icon: const Icon(Icons.sync)
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Image preview placeholder
-            Container(
-              height: 250,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.camera_alt,
-                      size: 60,
-                      color: Colors.grey,
-                    ),
-                    SizedBox(height: 10),
-                    Text(
-                      'AI Food Scanner',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      'Demo Mode - Click to analyze sample food',
-                      style: TextStyle(color: Colors.black54),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _IntakeVsRecommendedChart(intake: _intake, recommended: _recommended),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Demo analyze button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _simulateImageAnalysis,
-                icon: const Icon(Icons.analytics),
-                label: const Text('Analyze Sample Food'),
+                onPressed: _loading ? null : _analyzeWithAI,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Analyze My Diet with AI'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
-            // Loading indicator
-            if (_isLoading)
-              const Column(
-                children: [
-                  CircularProgressIndicator(color: Colors.green),
-                  SizedBox(height: 10),
-                  Text('Analyzing image...'),
-                ],
-              ),
+            if (_loading) const LinearProgressIndicator(minHeight: 2),
 
-            // Nutrition results
-            if (_nutritionData != null && !_isLoading)
-              _NutritionResultCard(nutritionData: _nutritionData!),
+            if (_aiSummary != null)
+              _AISummaryCard(summary: _aiSummary!),
           ],
         ),
       ),
@@ -123,81 +184,121 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
   }
 }
 
-class _NutritionResultCard extends StatelessWidget {
-  final Map<String, dynamic> nutritionData;
+class _IntakeVsRecommendedChart extends StatelessWidget {
+  final Map<String, double> intake;
+  final Map<String, double> recommended;
 
-  const _NutritionResultCard({required this.nutritionData});
+  const _IntakeVsRecommendedChart({required this.intake, required this.recommended});
 
   @override
   Widget build(BuildContext context) {
-    final micronutrients =
-        nutritionData['micronutrients'] as Map<String, dynamic>;
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.green.shade50,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade300,
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            nutritionData['food'],
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const Divider(thickness: 1.5),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNutrientBox(
-                'Calories',
-                '${nutritionData['calories']} kcal',
+    final labels = recommended.keys.toList();
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Nutrient Intake vs Recommendation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 240,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final idx = value.toInt();
+                          if (idx < 0 || idx >= labels.length) return const SizedBox();
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              labels[idx].split(' ').first, // short label
+                              style: const TextStyle(fontSize: 10),
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  barGroups: List.generate(labels.length, (i) {
+                    final label = labels[i];
+                    final intakeVal = intake[label] ?? 0;
+                    final recVal = recommended[label] ?? 0;
+                    return BarChartGroupData(
+                      x: i,
+                      barsSpace: 6,
+                      barRods: [
+                        BarChartRodData(toY: recVal, width: 10, color: Colors.green.shade200),
+                        BarChartRodData(toY: intakeVal, width: 10, color: Colors.green.shade600),
+                      ],
+                    );
+                  }),
+                  gridData: const FlGridData(show: true),
+                  borderData: FlBorderData(show: false),
+                ),
               ),
-              _buildNutrientBox('Protein', '${nutritionData['protein']} g'),
-              _buildNutrientBox('Carbs', '${nutritionData['carbs']} g'),
-              _buildNutrientBox('Fat', '${nutritionData['fat']} g'),
-            ],
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Micronutrients:',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          ...micronutrients.entries.map(
-            (e) => Text(
-              '• ${e.key}: ${e.value}',
-              style: const TextStyle(fontSize: 14),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            const Row(
+              children: [
+                _Legend(color: Colors.green, label: 'Intake'),
+                SizedBox(width: 12),
+                _Legend(color: Color(0xFF9CCC65), label: 'Recommended'),
+              ],
+            )
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildNutrientBox(String label, String value) {
-    return Column(
+class _Legend extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _Legend({required this.color, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 14, color: Colors.black87),
-        ),
+        Container(width: 12, height: 12, color: color),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontSize: 12)),
       ],
+    );
+  }
+}
+
+class _AISummaryCard extends StatelessWidget {
+  final String summary;
+  const _AISummaryCard({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('AI Insights', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(summary),
+          ],
+        ),
+      ),
     );
   }
 }

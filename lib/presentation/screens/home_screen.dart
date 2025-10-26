@@ -8,10 +8,10 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<_FeatureCard> features = [
       _FeatureCard(
-        title: 'AI Food Scanner',
+        title: 'Nutrition Analysis',
         description:
-            'Snap a picture of your meal and get instant nutrition info.',
-        icon: Icons.camera_alt,
+            'See intake vs. recommendation and get AI insights on your diet.',
+        icon: Icons.bar_chart,
         color: Colors.green.shade400,
         route: AppRoutes.nutritionAnalysis,
       ),
