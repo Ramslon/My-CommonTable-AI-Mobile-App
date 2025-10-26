@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 /// Affordable Meal Suggestions (Student-focused)
 /// - Budget-friendly ideas using common, low-cost staples
@@ -17,6 +19,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	bool _vegetarianOnly = false;
 	bool _useLocalStaples = true;
 	bool _loading = false;
+	String _region = 'Default';
 
 	late List<MealSuggestion> _allSuggestions;
 	List<MealSuggestion> _generated = [];
@@ -25,7 +28,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	@override
 	void initState() {
 		super.initState();
-		_allSuggestions = _buildSuggestionCatalog();
+		_allSuggestions = _buildSuggestionCatalog(_region);
 	}
 
 	@override
@@ -97,15 +100,26 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 					: SafeArea(
 							child: Padding(
 								padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-								child: ElevatedButton.icon(
-									style: ElevatedButton.styleFrom(
-										backgroundColor: Colors.teal,
-										foregroundColor: Colors.white,
-										minimumSize: const Size.fromHeight(48),
-									),
-									onPressed: _showShoppingList,
-									icon: const Icon(Icons.shopping_basket_outlined),
-									label: Text('View Shopping List (${_selected.length} selected)'),
+								child: Column(
+									mainAxisSize: MainAxisSize.min,
+									children: [
+										ElevatedButton.icon(
+											style: ElevatedButton.styleFrom(
+												backgroundColor: Colors.teal,
+												foregroundColor: Colors.white,
+												minimumSize: const Size.fromHeight(48),
+											),
+											onPressed: _showShoppingList,
+											icon: const Icon(Icons.shopping_basket_outlined),
+											label: Text('View Shopping List (${_selected.length} selected)'),
+										),
+										const SizedBox(height: 8),
+										OutlinedButton.icon(
+											onPressed: _saveSelectionToFirestore,
+											icon: const Icon(Icons.cloud_upload_outlined),
+											label: const Text('Save selection to Firestore'),
+										),
+									],
 								),
 							),
 						),
@@ -146,6 +160,33 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 										],
 										onChanged: (v) => setState(() => _mealsPerDay = v ?? _mealsPerDay),
 										decoration: const InputDecoration(labelText: 'Meals per day'),
+									),
+								),
+							],
+						),
+						const SizedBox(height: 12),
+						Row(
+							children: [
+								Expanded(
+									child: DropdownButtonFormField<String>(
+										initialValue: _region,
+										items: const [
+											DropdownMenuItem(value: 'Default', child: Text('Region: Default')),
+											DropdownMenuItem(value: 'Nigeria', child: Text('Region: Nigeria')),
+											DropdownMenuItem(value: 'Ghana', child: Text('Region: Ghana')),
+											DropdownMenuItem(value: 'Kenya', child: Text('Region: Kenya')),
+											DropdownMenuItem(value: 'USA', child: Text('Region: USA')),
+										],
+										onChanged: (v) {
+											if (v == null) return;
+											setState(() {
+												_region = v;
+												_allSuggestions = _buildSuggestionCatalog(_region);
+												_generated = [];
+												_selected.clear();
+											});
+										},
+										decoration: const InputDecoration(labelText: 'Region presets (local staples)'),
 									),
 								),
 							],
@@ -270,9 +311,53 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 		);
 	}
 
-	List<MealSuggestion> _buildSuggestionCatalog() {
+	Future<void> _saveSelectionToFirestore() async {
+		try {
+			if (Firebase.apps.isEmpty) {
+				await Firebase.initializeApp();
+			}
+			final firestore = FirebaseFirestore.instance;
+
+			final selectedMeals = _generated.where((m) => _selected.contains(m.name));
+			final Map<String, double> aggCosts = {};
+			for (final m in selectedMeals) {
+				for (final ing in m.ingredients) {
+					aggCosts.update(ing.name, (v) => v + ing.cost, ifAbsent: () => ing.cost);
+				}
+			}
+			final total = aggCosts.values.fold<double>(0, (s, c) => s + c);
+
+			final doc = {
+				'createdAt': DateTime.now().toIso8601String(),
+				'region': _region,
+				'budgetPerDay': double.tryParse(_budgetCtrl.text.trim()) ?? 3000.0,
+				'mealsPerDay': _mealsPerDay,
+				'vegetarianOnly': _vegetarianOnly,
+				'useLocalStaples': _useLocalStaples,
+				'selectedMeals': _selected.toList(),
+				'estimatedTotalCost': total,
+				'ingredients': aggCosts.entries
+						.map((e) => {'name': e.key, 'cost': e.value})
+						.toList(),
+			};
+
+			await firestore.collection('studentMealSelections').add(doc);
+
+			if (!mounted) return;
+			ScaffoldMessenger.of(context).showSnackBar(
+				const SnackBar(content: Text('Selection saved to Firestore')),
+			);
+		} catch (e) {
+			if (!mounted) return;
+			ScaffoldMessenger.of(context).showSnackBar(
+				SnackBar(content: Text('Failed to save: $e')),
+			);
+		}
+	}
+
+	List<MealSuggestion> _buildSuggestionCatalog([String region = 'Default']) {
 		// Costs are approximate per-serving placeholders; adjust to your locale as needed.
-		return [
+		final defaultMeals = [
 			MealSuggestion(
 				name: 'Rice & Beans with Fried Plantain',
 				vegetarian: true,
@@ -375,6 +460,116 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				],
 			),
 		];
+
+		if (region == 'Nigeria') {
+			return [
+				MealSuggestion(
+					name: 'Jollof Rice with Egg',
+					vegetarian: false,
+					usesLocalStaples: true,
+					kcal: 680,
+					ingredients: const [
+						IngredientItem(name: 'Rice (1 cup cooked)', cost: 120.0),
+						IngredientItem(name: 'Tomato/pepper/onion', cost: 150.0),
+						IngredientItem(name: 'Eggs (2)', cost: 150.0),
+						IngredientItem(name: 'Oil & spices', cost: 60.0),
+					],
+				),
+				MealSuggestion(
+					name: 'Garri & Beans (Ewa Agoyin style)',
+					vegetarian: true,
+					usesLocalStaples: true,
+					kcal: 700,
+					ingredients: const [
+						IngredientItem(name: 'Beans (1 cup cooked)', cost: 160.0),
+						IngredientItem(name: 'Garri (1 cup soaked)', cost: 80.0),
+						IngredientItem(name: 'Palm oil & pepper sauce', cost: 100.0),
+					],
+				),
+				...defaultMeals,
+			];
+		} else if (region == 'Ghana') {
+			return [
+				MealSuggestion(
+					name: 'Waakye (Rice & Beans) with Egg',
+					vegetarian: false,
+					usesLocalStaples: true,
+					kcal: 720,
+					ingredients: const [
+						IngredientItem(name: 'Rice & beans (1 cup cooked)', cost: 180.0),
+						IngredientItem(name: 'Egg (1)', cost: 75.0),
+						IngredientItem(name: 'Gari/shito (sides)', cost: 120.0),
+					],
+				),
+				MealSuggestion(
+					name: 'Kenkey with Pepper & Fish (small)',
+					vegetarian: false,
+					usesLocalStaples: true,
+					kcal: 650,
+					ingredients: const [
+						IngredientItem(name: 'Kenkey (1 small ball)', cost: 200.0),
+						IngredientItem(name: 'Pepper/onion sauce', cost: 100.0),
+						IngredientItem(name: 'Fish (small portion)', cost: 220.0),
+					],
+				),
+				...defaultMeals,
+			];
+		} else if (region == 'Kenya') {
+			return [
+				MealSuggestion(
+					name: 'Ugali with Sukuma Wiki',
+					vegetarian: true,
+					usesLocalStaples: true,
+					kcal: 600,
+					ingredients: const [
+						IngredientItem(name: 'Maize flour (ugali portion)', cost: 120.0),
+						IngredientItem(name: 'Sukuma wiki (greens)', cost: 120.0),
+						IngredientItem(name: 'Onion/tomato & oil', cost: 80.0),
+					],
+				),
+				MealSuggestion(
+					name: 'Githeri (Maize & Beans)',
+					vegetarian: true,
+					usesLocalStaples: true,
+					kcal: 650,
+					ingredients: const [
+						IngredientItem(name: 'Maize & beans (1 cup cooked)', cost: 180.0),
+						IngredientItem(name: 'Onion/tomato & oil', cost: 80.0),
+						IngredientItem(name: 'Spices', cost: 40.0),
+					],
+				),
+				...defaultMeals,
+			];
+		} else if (region == 'USA') {
+			return [
+				MealSuggestion(
+					name: 'PB&J Sandwich with Banana',
+					vegetarian: true,
+					usesLocalStaples: true,
+					kcal: 520,
+					ingredients: const [
+						IngredientItem(name: 'Bread (2 slices)', cost: 120.0),
+						IngredientItem(name: 'Peanut butter (1 tbsp)', cost: 80.0),
+						IngredientItem(name: 'Jam (1 tbsp)', cost: 60.0),
+						IngredientItem(name: 'Banana', cost: 80.0),
+					],
+				),
+				MealSuggestion(
+					name: 'Instant Ramen with Egg & Veg',
+					vegetarian: false,
+					usesLocalStaples: true,
+					kcal: 560,
+					ingredients: const [
+						IngredientItem(name: 'Instant ramen', cost: 150.0),
+						IngredientItem(name: 'Egg (1)', cost: 75.0),
+						IngredientItem(name: 'Frozen veg', cost: 120.0),
+					],
+				),
+				...defaultMeals,
+			];
+		}
+
+		return defaultMeals;
 	}
 
 	String _formatCost(double v) {

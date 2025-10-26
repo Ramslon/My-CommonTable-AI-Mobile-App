@@ -37,6 +37,13 @@ class HomeScreen extends StatelessWidget {
         color: Colors.purple.shade400,
         route: AppRoutes.progressDashboard,
       ),
+      _FeatureCard(
+        title: 'Student Budget Meals',
+        description: 'Affordable suggestions using local staples for students.',
+        icon: Icons.savings,
+        color: Colors.teal.shade400,
+        route: AppRoutes.studentFeatures,
+      ),
     ];
 
     return Scaffold(
