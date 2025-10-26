@@ -1,18 +1,14 @@
-/// Health sync integration points.
+/// Health sync integration placeholder.
 ///
-/// Implement pulling nutrition data from Google Fit (Android) or
-/// HealthKit (iOS) using appropriate packages (e.g., `health`).
-/// This class currently returns an empty map and shows how to extend.
+/// The `health` package API varies by version. To avoid breaking builds across
+/// environments, this placeholder returns an empty map by default. When ready,
+/// we can finalize the implementation against the confirmed package version
+/// (e.g., map nutrition types and use Health/HealthFactory as appropriate).
 class HealthSyncService {
-  /// Pulls daily nutrition aggregates (calories, macros) from device.
-  /// Return empty map if not available.
   Future<Map<String, num>> pullNutrition() async {
-    // TODO: Integrate with `health` or platform channels to read:
-    // - energyConsumed
-    // - protein, carbs, fat
-    // - fiber, sodium
-    // Make sure to request permissions at runtime.
-
+    // TODO: Implement using `package:health/health.dart` after confirming
+    // which HealthDataType constants are available in the chosen version.
+    // Then request authorization and read aggregates for today.
     return {};
   }
 }

@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
+import 'package:commontable_ai_app/core/services/app_settings.dart';
 import 'package:commontable_ai_app/core/services/health_sync_service.dart';
 
 class NutritionAnalysisScreen extends StatefulWidget {
@@ -92,7 +93,9 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
       _aiSummary = null;
     });
     try {
-      final summary = await _insightsService.generateInsights(intake: _intake);
+      // Check current provider from settings at runtime
+      final provider = await AppSettings().getInsightsProvider();
+      final summary = await _insightsService.generateInsights(intake: _intake, provider: provider);
       if (mounted) setState(() => _aiSummary = summary);
     } catch (e) {
       if (!mounted) return;
