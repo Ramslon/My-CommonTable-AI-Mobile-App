@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:commontable_ai_app/routes/app_routes.dart';
+import 'package:commontable_ai_app/routes/app_route.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -83,6 +83,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+
 // 🟢 WELCOME HEADER
 class _WelcomeHeader extends StatelessWidget {
   const _WelcomeHeader();
@@ -143,7 +144,7 @@ class _FeatureCardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: feature.color.withOpacity(0.3),
+            color: feature.color.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
