@@ -541,10 +541,25 @@ class _DayCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(day.label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                Text('${day.dayCalories} kcal · P ${day.dayProtein} · C ${day.dayCarbs} · F ${day.dayFats}', style: const TextStyle(color: Colors.black54)),
+                Expanded(
+                  child: Text(
+                    day.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    '${day.dayCalories} kcal · P ${day.dayProtein} · C ${day.dayCarbs} · F ${day.dayFats}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
