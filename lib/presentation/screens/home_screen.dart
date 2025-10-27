@@ -7,6 +7,22 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<_FeatureCard> features = [
+      // Surface high-priority cards first
+      _FeatureCard(
+        title: 'Premium Wellness',
+        description: 'AI wellness report, coaching, and wearable insights.',
+        icon: Icons.workspace_premium,
+        color: Colors.indigo.shade400,
+        route: AppRoutes.premiumFeatures,
+      ),
+      _FeatureCard(
+        title: 'Affordable Food Finder',
+        description: 'Budget meals, local offers, and nearby food banks.',
+        icon: Icons.volunteer_activism,
+        color: Colors.brown.shade400,
+        route: AppRoutes.lowIncomeFeatures,
+      ),
+      // Core features
       _FeatureCard(
         title: 'Nutrition Analysis',
         description:
@@ -38,25 +54,11 @@ class HomeScreen extends StatelessWidget {
         route: AppRoutes.progressDashboard,
       ),
       _FeatureCard(
-        title: 'Premium Wellness',
-        description: 'AI wellness report, coaching, and wearable insights.',
-        icon: Icons.workspace_premium,
-        color: Colors.indigo.shade400,
-        route: AppRoutes.premiumFeatures,
-      ),
-      _FeatureCard(
         title: 'Student Budget Meals',
         description: 'Affordable suggestions using local staples for students.',
         icon: Icons.savings,
         color: Colors.teal.shade400,
         route: AppRoutes.studentFeatures,
-      ),
-      _FeatureCard(
-        title: 'Affordable Food Finder',
-        description: 'Budget meals, local offers, and nearby food banks.',
-        icon: Icons.volunteer_activism,
-        color: Colors.brown.shade400,
-        route: AppRoutes.lowIncomeFeatures,
       ),
       _FeatureCard(
         title: 'Privacy & Security',
