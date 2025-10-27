@@ -4,11 +4,16 @@ import 'package:commontable_ai_app/presentation/screens/home_screen.dart';
 import 'package:commontable_ai_app/routes/app_route.dart';
 import 'package:commontable_ai_app/presentation/widgets/biometric_gate.dart';
 import 'package:commontable_ai_app/core/services/firebase_boot.dart';
+import 'package:commontable_ai_app/core/services/notifications_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize Firebase defensively; app can still run if not configured.
   await FirebaseBoot.init();
+  // Set up notifications; safe to call even if FCM not fully configured.
+  try {
+    await NotificationsService.init();
+  } catch (_) {}
   runApp(const CommontableAIApp());
 }
 

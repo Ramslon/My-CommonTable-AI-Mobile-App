@@ -143,4 +143,27 @@ class CommunityService {
       return UserProfile.fromDoc(d);
     });
   }
+
+  Future<void> updateProfile({String? displayName, String? bio, String? photoUrl}) async {
+    if (!FirebaseBoot.available || _uid == null) return;
+    final data = <String, dynamic>{};
+    if (displayName != null) data['displayName'] = displayName;
+    if (bio != null) data['bio'] = bio;
+    if (photoUrl != null) data['photoUrl'] = photoUrl;
+    if (data.isEmpty) return;
+    await _fs.collection('profiles').doc(_uid).set(data, SetOptions(merge: true));
+  }
+
+  Stream<List<UserProfile>> streamLeaderboard({int limit = 20}) {
+    if (!FirebaseBoot.available) {
+      final demo = [UserProfile(userId: 'u1', displayName: 'Top Member', challengesJoined: 5, badges: const ['Starter'] )];
+      return Stream.value(demo);
+    }
+    return _fs
+        .collection('profiles')
+        .orderBy('challengesJoined', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => UserProfile.fromDoc(d)).toList());
+  }
 }

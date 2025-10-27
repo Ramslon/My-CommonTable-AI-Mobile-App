@@ -84,17 +84,23 @@ class UserProfile {
   final String userId;
   final String? displayName;
   final String? photoUrl;
+  final String? bio;
   final int posts;
   final int likesGiven;
   final int challengesJoined;
+  final int streakDays;
+  final List<String> badges;
 
   UserProfile({
     required this.userId,
     this.displayName,
     this.photoUrl,
+    this.bio,
     this.posts = 0,
     this.likesGiven = 0,
     this.challengesJoined = 0,
+    this.streakDays = 0,
+    this.badges = const [],
   });
 
   factory UserProfile.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -103,18 +109,24 @@ class UserProfile {
       userId: doc.id,
       displayName: d['displayName'],
       photoUrl: d['photoUrl'],
+      bio: d['bio'],
       posts: (d['posts'] as num?)?.toInt() ?? 0,
       likesGiven: (d['likesGiven'] as num?)?.toInt() ?? 0,
       challengesJoined: (d['challengesJoined'] as num?)?.toInt() ?? 0,
+      streakDays: (d['streakDays'] as num?)?.toInt() ?? 0,
+      badges: (d['badges'] as List?)?.cast<String>() ?? const [],
     );
   }
 
   Map<String, dynamic> toMap() => {
         if (displayName != null) 'displayName': displayName,
         if (photoUrl != null) 'photoUrl': photoUrl,
+        if (bio != null) 'bio': bio,
         'posts': posts,
         'likesGiven': likesGiven,
         'challengesJoined': challengesJoined,
+        'streakDays': streakDays,
+        'badges': badges,
       };
 }
 

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:commontable_ai_app/core/models/community_models.dart';
 import 'package:commontable_ai_app/core/services/community_service.dart';
 import 'package:commontable_ai_app/core/services/community_recommendation_service.dart';
 import 'package:commontable_ai_app/core/services/content_moderation_service.dart';
 import 'package:commontable_ai_app/core/services/firebase_boot.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:commontable_ai_app/core/services/storage_service.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
   const CommunityFeedScreen({super.key});
@@ -20,6 +23,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
   final _postCtrl = TextEditingController();
   late final TabController _tabController;
   List<CommunityPost> _latest = [];
+  Uint8List? _pendingImage;
 
   @override
   void initState() {
@@ -43,8 +47,18 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post flagged by moderation policy.')));
       return;
     }
-    await _svc.createPost(text);
+    String? imageUrl;
+    if (_pendingImage != null) {
+      try {
+        final url = await StorageService().uploadImageBytes(_pendingImage!);
+        imageUrl = url;
+      } catch (_) {
+        // ignore upload failure silently; still post text
+      }
+    }
+    await _svc.createPost(text, imageUrl: imageUrl);
     _postCtrl.clear();
+    setState(() => _pendingImage = null);
   }
 
   @override
@@ -96,6 +110,20 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                 ),
               ),
               const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Add photo',
+                onPressed: FirebaseBoot.available
+                    ? () async {
+                        final picker = ImagePicker();
+                        final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                        if (x != null) {
+                          final bytes = await x.readAsBytes();
+                          setState(() => _pendingImage = bytes);
+                        }
+                      }
+                    : null,
+                icon: const Icon(Icons.add_a_photo_outlined),
+              ),
               ElevatedButton.icon(
                 onPressed: FirebaseBoot.available ? _submitPost : null,
                 icon: const Icon(Icons.send_outlined),
@@ -104,6 +132,19 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
             ],
           ),
         ),
+        if (_pendingImage != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                _pendingImage!,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
         Expanded(
           child: StreamBuilder<List<CommunityPost>>(
             stream: _svc.streamFeed(),
@@ -144,40 +185,65 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
         if (challenges.isEmpty) {
           return const Center(child: Text('No challenges yet. Check back soon!'));
         }
-        return ListView.separated(
+        return ListView(
           padding: const EdgeInsets.all(12),
-          itemCount: challenges.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, i) {
-            final c = challenges[i];
-            return Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(c.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 6),
-                    Text(c.description),
-                    const SizedBox(height: 8),
-                    Row(
+          children: [
+            ...List.generate(challenges.length, (i) {
+              final c = challenges[i];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Card(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.people_alt_outlined, size: 18),
-                        const SizedBox(width: 4),
-                        Text('${c.participants} joined'),
-                        const Spacer(),
-                        ElevatedButton(
-                          onPressed: FirebaseBoot.available ? () => _svc.joinChallenge(c.id) : null,
-                          child: const Text('Join'),
-                        ),
+                        Text(c.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 6),
+                        Text(c.description),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.people_alt_outlined, size: 18),
+                            const SizedBox(width: 4),
+                            Text('${c.participants} joined'),
+                            const Spacer(),
+                            ElevatedButton(
+                              onPressed: FirebaseBoot.available ? () => _svc.joinChallenge(c.id) : null,
+                              child: const Text('Join'),
+                            ),
+                          ],
+                        )
                       ],
-                    )
-                  ],
+                    ),
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            }),
+            const SizedBox(height: 12),
+            const Text('Leaderboard', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            StreamBuilder<List<UserProfile>>(
+              stream: _svc.streamLeaderboard(),
+              builder: (context, snapLb) {
+                final lb = snapLb.data ?? [];
+                if (lb.isEmpty) return const Text('No participants yet.');
+                return Column(
+                  children: lb.asMap().entries.map((e) {
+                    final idx = e.key + 1;
+                    final u = e.value;
+                    return ListTile(
+                      leading: CircleAvatar(child: Text('$idx')),
+                      title: Text(u.displayName ?? u.userId, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text('Challenges: ${u.challengesJoined} • Streak: ${u.streakDays}d'),
+                      trailing: const Icon(Icons.emoji_events_outlined, color: Colors.amber),
+                    );
+                  }).toList(),
+                );
+              },
+            )
+          ],
         );
       },
     );
@@ -195,7 +261,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
             children: [
               Row(
                 children: [
-                  const CircleAvatar(radius: 24, child: Icon(Icons.person)),
+                  CircleAvatar(radius: 24, backgroundImage: p.photoUrl != null ? NetworkImage(p.photoUrl!) : null, child: p.photoUrl == null ? const Icon(Icons.person) : null),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -205,6 +271,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                         Text('ID: ${p.userId}', style: const TextStyle(color: Colors.black54, fontSize: 12)),
                       ],
                     ),
+                  ),
+                  TextButton.icon(
+                    onPressed: FirebaseBoot.available ? () => _openEditProfile(p) : null,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit'),
                   ),
                 ],
               ),
@@ -216,9 +287,16 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                   _stat('Posts', p.posts),
                   _stat('Likes Given', p.likesGiven),
                   _stat('Challenges', p.challengesJoined),
+                  _stat('Streak', p.streakDays),
                 ],
               ),
               const SizedBox(height: 16),
+              if (p.badges.isNotEmpty) ...[
+                const Text('Badges', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Wrap(spacing: 8, runSpacing: 8, children: p.badges.map((b) => Chip(label: Text(b))).toList()),
+                const SizedBox(height: 16),
+              ],
               const Text('Recommendations', style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
               FutureBuilder<List<CommunityPost>>(
@@ -240,6 +318,73 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
           ),
         );
       },
+    );
+  }
+
+  void _openEditProfile(UserProfile p) {
+    final nameCtrl = TextEditingController(text: p.displayName ?? '');
+    final bioCtrl = TextEditingController(text: p.bio ?? '');
+    Uint8List? avatarBytes;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => StatefulBuilder(builder: (context, setSheet) {
+        return Padding(
+          padding: EdgeInsets.only(left: 16, right: 16, bottom: MediaQuery.of(context).viewInsets.bottom + 16, top: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(radius: 28, backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes!) : (p.photoUrl != null ? NetworkImage(p.photoUrl!) : null) as ImageProvider<Object>?),
+                  const SizedBox(width: 12),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final picker = ImagePicker();
+                      final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                      if (x != null) {
+                        final bytes = await x.readAsBytes();
+                        setSheet(() => avatarBytes = bytes);
+                      }
+                    },
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Change avatar'),
+                  )
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Display name')),
+              const SizedBox(height: 8),
+              TextField(controller: bioCtrl, decoration: const InputDecoration(labelText: 'Bio'), maxLines: 3),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final nav = Navigator.of(context);
+                    String? photoUrl;
+                    if (avatarBytes != null) {
+                      try {
+                        photoUrl = await StorageService().uploadImageBytes(avatarBytes!, folder: 'avatars');
+                      } catch (_) {}
+                    }
+                    await _svc.updateProfile(
+                      displayName: nameCtrl.text.trim().isEmpty ? null : nameCtrl.text.trim(),
+                      bio: bioCtrl.text.trim().isEmpty ? null : bioCtrl.text.trim(),
+                      photoUrl: photoUrl,
+                    );
+                    if (mounted) nav.pop();
+                  },
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Save'),
+                ),
+              )
+            ],
+          ),
+        );
+      }),
     );
   }
 
