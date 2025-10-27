@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:commontable_ai_app/core/models/meal_plan.dart';
 import 'package:commontable_ai_app/core/services/ai_meal_plan_service.dart';
 import 'package:commontable_ai_app/core/services/diet_assessment_service.dart';
+import 'package:commontable_ai_app/routes/app_route.dart';
 
 class NutritionPlanScreen extends StatefulWidget {
   const NutritionPlanScreen({super.key});
@@ -31,11 +33,15 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
   bool _assessing = false;
   DietAssessmentResult? _assessment;
   List<_ScorePoint> _history = [];
+  String _historyPeriodFilter = 'All'; // All | daily | weekly
+  String? _userId; // if auth available
 
   @override
   void initState() {
     super.initState();
     _calorieCtrl = TextEditingController(text: _goalToCalories(_goal).toString());
+    _resolveUser();
+    _loadHistory();
   }
 
   @override
@@ -104,6 +110,7 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
       }
+      await _resolveUser();
       final a = _assessment!;
       await FirebaseFirestore.instance.collection('dietAssessments').add({
         'createdAt': a.createdAt.toIso8601String(),
@@ -112,6 +119,7 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
         'intake': a.intake,
         'risks': a.risks,
         'suggestions': a.suggestions,
+        if (_userId != null) 'userId': _userId,
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assessment saved')));
@@ -127,11 +135,17 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
       }
-      final qs = await FirebaseFirestore.instance
-          .collection('dietAssessments')
-          .orderBy('createdAt', descending: true)
-          .limit(20)
-          .get();
+      await _resolveUser();
+      Query<Map<String, dynamic>> ref = FirebaseFirestore.instance.collection('dietAssessments');
+      if (_userId != null) {
+        ref = ref.where('userId', isEqualTo: _userId);
+      }
+      if (_historyPeriodFilter == 'daily') {
+        ref = ref.where('period', isEqualTo: 'daily');
+      } else if (_historyPeriodFilter == 'weekly') {
+        ref = ref.where('period', isEqualTo: 'weekly');
+      }
+      final qs = await ref.orderBy('createdAt', descending: true).limit(20).get();
       final points = <_ScorePoint>[];
       for (final d in qs.docs) {
         final data = d.data();
@@ -142,6 +156,18 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       setState(() => _history = points.reversed.toList());
     } catch (_) {
       // ignore silently
+    }
+  }
+
+  Future<void> _resolveUser() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      final user = FirebaseAuth.instance.currentUser;
+      setState(() => _userId = user?.uid);
+    } catch (_) {
+      // auth not set up; leave _userId as null
     }
   }
   @override
@@ -173,6 +199,16 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
               ],
               const SizedBox(height: 16),
               if (_history.isNotEmpty) _buildProgressChart(),
+              if (_history.isNotEmpty) const SizedBox(height: 12),
+              if (_history.isNotEmpty)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, AppRoutes.progressDashboard),
+                    icon: const Icon(Icons.dashboard_customize_outlined),
+                    label: const Text('View Full Progress Dashboard'),
+                  ),
+                ),
             ],
           ),
         ),
@@ -411,6 +447,26 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Diet Quality Progress', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('Filter:'),
+                const SizedBox(width: 8),
+                DropdownButton<String>(
+                  value: _historyPeriodFilter,
+                  items: const [
+                    DropdownMenuItem(value: 'All', child: Text('All')),
+                    DropdownMenuItem(value: 'daily', child: Text('Daily')),
+                    DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                  ],
+                  onChanged: (v) async {
+                    if (v == null) return;
+                    setState(() => _historyPeriodFilter = v);
+                    await _loadHistory();
+                  },
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             SizedBox(
               height: 180,
