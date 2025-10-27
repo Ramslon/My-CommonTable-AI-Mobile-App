@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:commontable_ai_app/core/models/meal_plan.dart';
 import 'package:commontable_ai_app/core/services/ai_meal_plan_service.dart';
+import 'package:commontable_ai_app/core/services/diet_assessment_service.dart';
 
 class NutritionPlanScreen extends StatefulWidget {
   const NutritionPlanScreen({super.key});
@@ -11,6 +15,7 @@ class NutritionPlanScreen extends StatefulWidget {
 
 class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
   final _service = AiMealPlanService();
+  final _assessor = DietAssessmentService();
 
   // Form state
   MealPlanTimeframe _timeframe = MealPlanTimeframe.daily;
@@ -21,6 +26,12 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
   bool _loading = false;
   MealPlan? _plan;
 
+  // Assessment state
+  final TextEditingController _dietTextCtrl = TextEditingController();
+  bool _assessing = false;
+  DietAssessmentResult? _assessment;
+  List<_ScorePoint> _history = [];
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +41,7 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
   @override
   void dispose() {
     _calorieCtrl.dispose();
+    _dietTextCtrl.dispose();
     super.dispose();
   }
 
@@ -64,6 +76,74 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       _loading = false;
     });
   }
+
+  Future<void> _assess() async {
+    FocusScope.of(context).unfocus();
+    final lines = _dietTextCtrl.text.split('\n');
+    setState(() {
+      _assessing = true;
+      _assessment = null;
+    });
+    try {
+      final result = await _assessor.assessDiet(
+        foods: lines,
+        period: _timeframe == MealPlanTimeframe.daily ? 'daily' : 'weekly',
+      );
+      setState(() => _assessment = result);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Assessment failed: $e')));
+    } finally {
+      if (mounted) setState(() => _assessing = false);
+    }
+  }
+
+  Future<void> _saveAssessment() async {
+    if (_assessment == null) return;
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      final a = _assessment!;
+      await FirebaseFirestore.instance.collection('dietAssessments').add({
+        'createdAt': a.createdAt.toIso8601String(),
+        'period': a.period,
+        'healthScore': a.healthScore,
+        'intake': a.intake,
+        'risks': a.risks,
+        'suggestions': a.suggestions,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assessment saved')));
+      await _loadHistory();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      final qs = await FirebaseFirestore.instance
+          .collection('dietAssessments')
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
+      final points = <_ScorePoint>[];
+      for (final d in qs.docs) {
+        final data = d.data();
+        final ts = DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now();
+        final sc = (data['healthScore'] as num?)?.toDouble() ?? 0;
+        points.add(_ScorePoint(ts, sc));
+      }
+      setState(() => _history = points.reversed.toList());
+    } catch (_) {
+      // ignore silently
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,6 +165,14 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
               const SizedBox(height: 16),
               if (_loading) const Center(child: CircularProgressIndicator()),
               if (!_loading && _plan != null) _PlanView(plan: _plan!),
+              const SizedBox(height: 16),
+              _buildAssessmentCard(),
+              if (_assessment != null) ...[
+                const SizedBox(height: 12),
+                _buildAssessmentResult(_assessment!),
+              ],
+              const SizedBox(height: 16),
+              if (_history.isNotEmpty) _buildProgressChart(),
             ],
           ),
         ),
@@ -191,6 +279,169 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       ),
     );
   }
+
+  Widget _buildAssessmentCard() {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.health_and_safety_outlined, color: Colors.teal),
+                SizedBox(width: 8),
+                Text('AI Dietary Assessment & Risk Analyzer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('Enter foods you ate ${_timeframe == MealPlanTimeframe.daily ? 'today' : 'this week'} (one per line):',
+                style: const TextStyle(color: Colors.black54)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _dietTextCtrl,
+              decoration: const InputDecoration(
+                hintText: 'e.g. oats with yogurt\nrice and beans\nchicken stew with vegetables',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 5,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                    onPressed: _assessing ? null : _assess,
+                    icon: const Icon(Icons.analytics_outlined),
+                    label: Text(_assessing ? 'Assessing...' : 'Assess My Diet'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _assessment == null ? null : _saveAssessment,
+                    icon: const Icon(Icons.cloud_upload_outlined),
+                    label: const Text('Save Assessment'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssessmentResult(DietAssessmentResult a) {
+    final pct = (a.healthScore / 100).clamp(0.0, 1.0);
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Diet Quality Score', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: pct,
+                minHeight: 14,
+                backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                color: pct >= 0.7
+                    ? Colors.green
+                    : pct >= 0.5
+                        ? Colors.orange
+                        : Colors.red,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text('${a.healthScore.toStringAsFixed(0)}%'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: a.risks.isEmpty
+                  ? [const Chip(label: Text('No immediate risks detected'))]
+                  : a.risks.map((r) => Chip(label: Text(r))).toList(),
+            ),
+            const SizedBox(height: 12),
+            const Text('AI Suggestions', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            _aiText(a.suggestions),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _aiText(String text) {
+    final parsed = _parseBullets(text);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (parsed.base.isNotEmpty) Text(parsed.base),
+        if (parsed.bullets != null) ...[
+          const SizedBox(height: 8),
+          ...parsed.bullets!.map((b) => Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [const Text('• '), Expanded(child: Text(b))],
+              )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildProgressChart() {
+    final spots = <FlSpot>[];
+    for (var i = 0; i < _history.length; i++) {
+      spots.add(FlSpot(i.toDouble(), _history[i].score));
+    }
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Diet Quality Progress', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  minY: 0,
+                  maxY: 100,
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30)),
+                    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  gridData: FlGridData(show: true, drawVerticalLine: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      barWidth: 3,
+                      color: Colors.teal,
+                      dotData: const FlDotData(show: false),
+                    )
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PlanView extends StatelessWidget {
@@ -277,4 +528,33 @@ class _MealTile extends StatelessWidget {
       ],
     );
   }
+}
+
+class _ScorePoint {
+  final DateTime ts;
+  final double score; // 0..100
+  _ScorePoint(this.ts, this.score);
+}
+
+class _ParsedReply {
+  final String base;
+  final List<String>? bullets;
+  _ParsedReply(this.base, this.bullets);
+}
+
+_ParsedReply _parseBullets(String text) {
+  final lines = text.split('\n');
+  final bullets = <String>[];
+  final baseLines = <String>[];
+  for (final l in lines) {
+    final t = l.trimLeft();
+    if (t.startsWith('• ') || t.startsWith('- ')) {
+      final cleaned = t.substring(2).trim();
+      if (cleaned.isNotEmpty) bullets.add(cleaned);
+    } else {
+      baseLines.add(l);
+    }
+  }
+  final base = baseLines.join('\n').trim();
+  return _ParsedReply(base.isEmpty ? text : base, bullets.isEmpty ? null : bullets);
 }
