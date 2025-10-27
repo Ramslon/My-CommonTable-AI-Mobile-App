@@ -12,6 +12,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
+import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 class LowIncomeFeaturesScreen extends StatefulWidget {
 	const LowIncomeFeaturesScreen({super.key});
@@ -64,6 +65,12 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 	Future<void> _refreshOffers() async {
 		setState(() { _loadingOffers = true; });
 		try {
+			final p = await PrivacySettingsService().load();
+			if (p.offlineMode) {
+				// Respect offline mode: rely on cache only
+				setState(() { _loadingOffers = false; });
+				return;
+			}
 			final conn = await Connectivity().checkConnectivity();
 			if (conn.contains(ConnectivityResult.none)) {
 				setState(() { _loadingOffers = false; });
@@ -164,7 +171,8 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 
 	Future<void> _loadMapMarkers() async {
 		// If Maps key present and location known, optionally query Places Text Search for "food bank near me".
-		if (_mapsKey.isNotEmpty && _position != null) {
+		final offline = await (() async { try { return (await PrivacySettingsService().load()).offlineMode; } catch (_) { return false; } })();
+		if (!offline && _mapsKey.isNotEmpty && _position != null) {
 			try {
 				final uri = Uri.https('maps.googleapis.com', '/maps/api/place/textsearch/json', {
 					'query': 'food bank near me',

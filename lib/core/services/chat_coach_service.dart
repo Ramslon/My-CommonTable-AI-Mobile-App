@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 /// Lightweight chat coach service supporting simulated, Gemini, OpenAI and HF.
 class ChatCoachService {
@@ -18,6 +19,13 @@ class ChatCoachService {
   }
 
   Future<ChatReply> reply({required List<ChatTurn> history, ChatProvider? provider}) async {
+    // Offline mode short-circuits to simulated response
+    try {
+      final p = await PrivacySettingsService().load();
+      if (p.offlineMode) {
+        return ChatReply(text: _simulate(history), provider: ChatProvider.simulated, note: 'offline mode');
+      }
+    } catch (_) {}
     final chosen = provider ?? autoProvider;
     switch (chosen) {
       case ChatProvider.gemini:

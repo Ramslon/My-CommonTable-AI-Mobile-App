@@ -58,6 +58,13 @@ class HomeScreen extends StatelessWidget {
         color: Colors.brown.shade400,
         route: AppRoutes.lowIncomeFeatures,
       ),
+      _FeatureCard(
+        title: 'Privacy & Security',
+        description: 'Biometrics, AI data consent, export & deletion.',
+        icon: Icons.lock_outline,
+        color: Colors.grey.shade600,
+        route: AppRoutes.privacySettings,
+      ),
     ];
 
     return Scaffold(

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 /// Service to generate nutrition insights.
 ///
@@ -20,6 +21,11 @@ class NutritionInsightsService {
       _geminiKey.isNotEmpty ? InsightsProvider.gemini : _hfKey.isNotEmpty ? InsightsProvider.huggingFace : InsightsProvider.simulated;
 
   Future<String> generateInsights({required Map<String, double> intake, InsightsProvider? provider}) async {
+    // Respect offline mode: force simulated output
+    try {
+      final p = await PrivacySettingsService().load();
+      if (p.offlineMode) return _simulatedSummary(intake);
+    } catch (_) {}
     final chosen = provider ?? _autoProvider;
     switch (chosen) {
       case InsightsProvider.gemini:
@@ -48,6 +54,18 @@ class NutritionInsightsService {
     double? dietHealthScore,
     InsightsProvider? provider,
   }) async {
+    try {
+      final p = await PrivacySettingsService().load();
+      if (p.offlineMode) {
+        final prompt = _buildWellnessPrompt(
+          vitals: vitals ?? const {},
+          activity: activity ?? const {},
+          sleep: sleep ?? const {},
+          dietHealthScore: dietHealthScore,
+        );
+        return _simulatedWellness(prompt);
+      }
+    } catch (_) {}
     final chosen = provider ?? _autoProvider;
     final prompt = _buildWellnessPrompt(
       vitals: vitals ?? const {},
@@ -83,6 +101,12 @@ class NutritionInsightsService {
     double? budgetPerDay,
     InsightsProvider? provider,
   }) async {
+    try {
+      final p = await PrivacySettingsService().load();
+      if (p.offlineMode) {
+        return _simulatedMood(mood, region, vegetarianOnly, useLocalStaples, budgetPerDay);
+      }
+    } catch (_) {}
     final chosen = provider ?? _autoProvider;
     switch (chosen) {
       case InsightsProvider.gemini:

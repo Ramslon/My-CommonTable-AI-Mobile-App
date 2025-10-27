@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
+import 'package:commontable_ai_app/routes/app_route.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -52,6 +53,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () {
                     // TODO: Navigate to account info
                   },
+                ),
+                _buildSettingsTile(
+                  icon: Icons.lock_outline,
+                  title: 'Privacy & Security',
+                  subtitle: 'Biometrics, data usage, export & deletion',
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.privacySettings),
                 ),
                 _buildSettingsTile(
                   icon: Icons.notifications,
