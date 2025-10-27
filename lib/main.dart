@@ -5,9 +5,12 @@ import 'package:commontable_ai_app/routes/app_route.dart';
 import 'package:commontable_ai_app/presentation/widgets/biometric_gate.dart';
 import 'package:commontable_ai_app/core/services/firebase_boot.dart';
 import 'package:commontable_ai_app/core/services/notifications_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Register FCM background handler as early as possible
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   // Initialize Firebase defensively; app can still run if not configured.
   await FirebaseBoot.init();
   // Set up notifications; safe to call even if FCM not fully configured.
