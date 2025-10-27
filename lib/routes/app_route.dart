@@ -7,6 +7,7 @@ import 'package:commontable_ai_app/presentation/screens/settings_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/nutrition_analysis_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/real_chatbot_screen.dart' as chat;
 import 'package:commontable_ai_app/presentation/screens/student_features_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/low_income_features_screen.dart';
 
 class AppRoutes {
   static const String onboarding = '/onboarding';
@@ -17,6 +18,7 @@ class AppRoutes {
   static const String progressDashboard = '/progressDashboard';
   static const String settings = '/settings';
   static const String studentFeatures = '/student-features';
+  static const String lowIncomeFeatures = '/low-income-features';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -38,6 +40,8 @@ class AppRoutes {
         );
       case studentFeatures:
         return MaterialPageRoute(builder: (_) => const StudentFeaturesScreen());
+      case lowIncomeFeatures:
+        return MaterialPageRoute(builder: (_) => const LowIncomeFeaturesScreen());
       case AppRoutes.settings:
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
       default:

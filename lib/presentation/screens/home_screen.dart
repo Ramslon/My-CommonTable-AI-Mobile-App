@@ -44,6 +44,13 @@ class HomeScreen extends StatelessWidget {
         color: Colors.teal.shade400,
         route: AppRoutes.studentFeatures,
       ),
+      _FeatureCard(
+        title: 'Affordable Food Finder',
+        description: 'Budget meals, local offers, and nearby food banks.',
+        icon: Icons.volunteer_activism,
+        color: Colors.brown.shade400,
+        route: AppRoutes.lowIncomeFeatures,
+      ),
     ];
 
     return Scaffold(
