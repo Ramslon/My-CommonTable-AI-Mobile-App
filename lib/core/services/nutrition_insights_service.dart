@@ -39,6 +39,41 @@ class NutritionInsightsService {
     }
   }
 
+  /// Advanced lifestyle/wellness report combining wearable metrics and diet.
+  /// Expects small numeric maps like { 'steps': 6500, 'hr_avg': 72 }.
+  Future<String> generateWellnessReport({
+    Map<String, double>? vitals,
+    Map<String, double>? activity,
+    Map<String, double>? sleep,
+    double? dietHealthScore,
+    InsightsProvider? provider,
+  }) async {
+    final chosen = provider ?? _autoProvider;
+    final prompt = _buildWellnessPrompt(
+      vitals: vitals ?? const {},
+      activity: activity ?? const {},
+      sleep: sleep ?? const {},
+      dietHealthScore: dietHealthScore,
+    );
+
+    switch (chosen) {
+      case InsightsProvider.gemini:
+        try {
+          return await _callGeminiWithPrompt(prompt);
+        } catch (e) {
+          return 'AI wellness report (Gemini) unavailable: $e\n\n${_simulatedWellness(prompt)}';
+        }
+      case InsightsProvider.huggingFace:
+        try {
+          return await _callHFWithPrompt(prompt);
+        } catch (e) {
+          return 'AI wellness report (HF) unavailable: $e\n\n${_simulatedWellness(prompt)}';
+        }
+      case InsightsProvider.simulated:
+        return _simulatedWellness(prompt);
+    }
+  }
+
   /// Mood-based nutrition guidance using the same provider selection.
   Future<String> generateMoodSupport({
     required String mood,
@@ -167,6 +202,99 @@ class NutritionInsightsService {
     } else {
       throw Exception('HF HTTP ${resp.statusCode}: ${resp.body}');
     }
+  }
+
+  Future<String> _callGeminiWithPrompt(String prompt) async {
+    if (_geminiKey.isEmpty) throw Exception('Missing GEMINI_API_KEY');
+    final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiKey');
+    final body = {
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt}
+          ]
+        }
+      ]
+    };
+    final resp = await http
+        .post(uri, headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 20));
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final candidates = (data['candidates'] as List?) ?? const [];
+      if (candidates.isNotEmpty) {
+        final content = candidates.first['content'] as Map<String, dynamic>?;
+        final parts = (content?['parts'] as List?) ?? const [];
+        final text = parts.map((p) => p['text']).whereType<String>().join('\n').trim();
+        if (text.isNotEmpty) return text;
+      }
+      throw Exception('No text in Gemini response');
+    } else {
+      throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
+    }
+  }
+
+  Future<String> _callHFWithPrompt(String prompt) async {
+    if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
+    final model = _hfModel;
+    final uri = Uri.parse('https://api-inference.huggingface.co/models/$model');
+    final headers = {
+      'Authorization': 'Bearer $_hfKey',
+      'Content-Type': 'application/json',
+    };
+    final body = jsonEncode({'inputs': prompt, 'parameters': {'max_new_tokens': 220, 'temperature': 0.3}});
+
+    final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 20));
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      final data = jsonDecode(resp.body);
+      if (data is List && data.isNotEmpty) {
+        final first = data.first;
+        if (first is Map<String, dynamic>) {
+          final txt = first['generated_text'] ?? first['summary_text'] ?? first['text'];
+          if (txt is String && txt.trim().isNotEmpty) return txt.trim();
+        } else if (first is String && first.trim().isNotEmpty) {
+          return first.trim();
+        }
+      } else if (data is Map<String, dynamic>) {
+        final txt = data['generated_text'] ?? data['summary_text'] ?? data['text'];
+        if (txt is String && txt.trim().isNotEmpty) return txt.trim();
+      }
+      throw Exception('Unexpected HF response shape');
+    } else {
+      throw Exception('HF HTTP ${resp.statusCode}: ${resp.body}');
+    }
+  }
+
+  String _buildWellnessPrompt({
+    required Map<String, double> vitals,
+    required Map<String, double> activity,
+    required Map<String, double> sleep,
+    double? dietHealthScore,
+  }) {
+    final parts = <String>[];
+    if (vitals.isNotEmpty) parts.add('Vitals: ${_kv(vitals)}');
+    if (activity.isNotEmpty) parts.add('Activity: ${_kv(activity)}');
+    if (sleep.isNotEmpty) parts.add('Sleep: ${_kv(sleep)}');
+    if (dietHealthScore != null) parts.add('DietScore: ${dietHealthScore.toStringAsFixed(0)}');
+    final ctx = parts.join(' | ');
+  return 'You are a premium health coach. Using the data ($ctx), write a short wellness insight report:\n'
+    '• 3-5 actionable bullets (stress, recovery, activity, nutrition)\n'
+    '• Highlight 1 priority for today and 1 for the week\n'
+    '• Keep under 120 words; avoid repetition; friendly, professional tone.';
+  }
+
+  String _kv(Map<String, double> m) => m.entries.map((e) => '${e.key}=${e.value.toStringAsFixed(0)}').join(', ');
+
+  String _simulatedWellness(String promptEcho) {
+    final bullets = [
+      'Aim for a 20–30 min brisk walk today; add gentle mobility if stiff.',
+      'Prioritize 7–8 hours sleep; keep a consistent wind-down and caffeine cutoff.',
+      'Add 20–30 g protein at each meal; include leafy greens and high-fiber carbs.',
+      'Hydrate: target 6–8 cups water; add electrolytes after sweaty activity.',
+      'Mindfulness micro-breaks (2–3 min) between study/work blocks to lower stress load.',
+    ];
+    return 'Personalized Wellness Insights:\n\n${bullets.map((b) => '• $b').join('\n')}\n\nToday’s Priority: Get outside for a short walk.\nThis Week: Establish a sleep routine (same bedtime/wake time).';
   }
 
   String _buildPrompt(Map<String, double> intake) {

@@ -38,6 +38,13 @@ class HomeScreen extends StatelessWidget {
         route: AppRoutes.progressDashboard,
       ),
       _FeatureCard(
+        title: 'Premium Wellness',
+        description: 'AI wellness report, coaching, and wearable insights.',
+        icon: Icons.workspace_premium,
+        color: Colors.indigo.shade400,
+        route: AppRoutes.premiumFeatures,
+      ),
+      _FeatureCard(
         title: 'Student Budget Meals',
         description: 'Affordable suggestions using local staples for students.',
         icon: Icons.savings,
