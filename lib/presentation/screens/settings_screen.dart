@@ -68,7 +68,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'App Preferences',
               children: [
                 ListTile(
-                  leading: Icon(Icons.auto_awesome, color: Colors.grey.shade600),
+                  leading: Icon(
+                    Icons.auto_awesome,
+                    color: Colors.grey.shade600,
+                  ),
                   title: const Text('AI Insights Provider'),
                   subtitle: Text(_labelForProvider(_provider)),
                   trailing: const Icon(Icons.chevron_right),
@@ -144,12 +147,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Select AI Insights Provider', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Select AI Insights Provider',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 8),
                   _ProviderOption(
                     title: 'Simulated (offline demo)',
                     selected: temp == InsightsProvider.simulated,
-                    onTap: () => setModal(() => temp = InsightsProvider.simulated),
+                    onTap: () =>
+                        setModal(() => temp = InsightsProvider.simulated),
                   ),
                   _ProviderOption(
                     title: 'Gemini (Google AI)',
@@ -161,7 +168,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Hugging Face Inference API',
                     subtitle: 'Requires HF_API_KEY at build/run',
                     selected: temp == InsightsProvider.huggingFace,
-                    onTap: () => setModal(() => temp = InsightsProvider.huggingFace),
+                    onTap: () =>
+                        setModal(() => temp = InsightsProvider.huggingFace),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
@@ -170,7 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onPressed: () => Navigator.pop(context, temp),
                       child: const Text('Use Provider'),
                     ),
-                  )
+                  ),
                 ],
               ),
             );
@@ -184,12 +192,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       setState(() => _provider = selected);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('AI provider set to ${_labelForProvider(selected)}')),
+        SnackBar(
+          content: Text('AI provider set to ${_labelForProvider(selected)}'),
+        ),
       );
     }
   }
 
-  Widget _buildSettingsSection({required String title, required List<Widget> children}) {
+  Widget _buildSettingsSection({
+    required String title,
+    required List<Widget> children,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -206,7 +219,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(children: children),
         ),
       ],
@@ -227,7 +242,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onTap: onTap,
     );
   }
-
 }
 
 class _ProviderOption extends StatelessWidget {

@@ -22,6 +22,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	String _region = 'Default';
 
 	late List<MealSuggestion> _allSuggestions;
+	late List<MealSuggestion> _mentalHealth; // curated list: mood-boosting, stress-reducing
 	List<MealSuggestion> _generated = [];
 	final Set<String> _selected = {};
 
@@ -29,6 +30,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	void initState() {
 		super.initState();
 		_allSuggestions = _buildSuggestionCatalog(_region);
+		_mentalHealth = _buildMentalHealthSuggestions(_region);
 	}
 
 	@override
@@ -92,6 +94,9 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 						const SizedBox(height: 16),
 						if (_loading) const Center(child: CircularProgressIndicator()),
 						if (!_loading && _generated.isNotEmpty) _buildResults(),
+						// Mental health nutrition section (always visible)
+						const SizedBox(height: 16),
+						_buildMentalHealthSection(),
 					],
 				),
 			),
@@ -182,6 +187,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 											setState(() {
 												_region = v;
 												_allSuggestions = _buildSuggestionCatalog(_region);
+												_mentalHealth = _buildMentalHealthSuggestions(_region);
 												_generated = [];
 												_selected.clear();
 											});
@@ -244,7 +250,8 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	}
 
 	void _showShoppingList() {
-		final selectedMeals = _generated.where((m) => _selected.contains(m.name));
+		final allPools = <MealSuggestion>[..._generated, ..._mentalHealth];
+		final selectedMeals = allPools.where((m) => _selected.contains(m.name));
 		final Map<String, double> aggCosts = {};
 		for (final m in selectedMeals) {
 			for (final ing in m.ingredients) {
@@ -318,7 +325,8 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			}
 			final firestore = FirebaseFirestore.instance;
 
-			final selectedMeals = _generated.where((m) => _selected.contains(m.name));
+			final allPools = <MealSuggestion>[..._generated, ..._mentalHealth];
+			final selectedMeals = allPools.where((m) => _selected.contains(m.name));
 			final Map<String, double> aggCosts = {};
 			for (final m in selectedMeals) {
 				for (final ing in m.ingredients) {
@@ -353,6 +361,60 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				SnackBar(content: Text('Failed to save: $e')),
 			);
 		}
+	}
+
+	// Curated Student Mental Health Nutrition suggestions
+	Widget _buildMentalHealthSection() {
+		return Card(
+			elevation: 2,
+			shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+			child: Padding(
+				padding: const EdgeInsets.all(16),
+				child: Column(
+					crossAxisAlignment: CrossAxisAlignment.start,
+					children: [
+						Row(
+							children: const [
+								Icon(Icons.psychology_alt_outlined, color: Colors.teal),
+								SizedBox(width: 8),
+								Expanded(
+									child: Text(
+										'Student Mental Health Nutrition',
+										style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+									),
+								),
+							],
+						),
+						const SizedBox(height: 8),
+						Text(
+							"Foods rich in omega-3s, complex carbs, magnesium, and probiotics may support mood and reduce stress.",
+							style: TextStyle(color: Colors.black.withValues(alpha: 0.7)),
+						),
+						const SizedBox(height: 12),
+						..._mentalHealth.map(
+							(m) => _MealSuggestionCard(
+								suggestion: m,
+								selected: _selected.contains(m.name),
+								onToggle: () {
+									setState(() {
+										if (_selected.contains(m.name)) {
+											_selected.remove(m.name);
+										} else {
+											_selected.add(m.name);
+										}
+									});
+								},
+							),
+						),
+						const SizedBox(height: 4),
+						Text(
+							'This information is educational and not a substitute for professional medical advice.',
+							style: TextStyle(fontSize: 12, color: Colors.black.withValues(alpha: 0.6)),
+						),
+					],
+				),
+			),
+		);
 	}
 
 	List<MealSuggestion> _buildSuggestionCatalog([String region = 'Default']) {
@@ -570,6 +632,100 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 		}
 
 		return defaultMeals;
+	}
+
+	List<MealSuggestion> _buildMentalHealthSuggestions([String region = 'Default']) {
+		// Evidence-informed, budget-conscious ideas; adjust costs locally as needed.
+		final base = <MealSuggestion>[
+			MealSuggestion(
+				name: 'Oats, Yogurt, Nuts & Banana Bowl',
+				vegetarian: true,
+				usesLocalStaples: true,
+				kcal: 520,
+				ingredients: const [
+					IngredientItem(name: 'Oats (1 cup cooked)', cost: 100.0),
+					IngredientItem(name: 'Plain yogurt (1/2 cup)', cost: 120.0),
+					IngredientItem(name: 'Banana (1)', cost: 80.0),
+					IngredientItem(name: 'Peanuts or mixed nuts (small handful)', cost: 120.0),
+				],
+			),
+			MealSuggestion(
+				name: 'Sardine & Avocado on Wholegrain Bread',
+				vegetarian: false,
+				usesLocalStaples: true,
+				kcal: 600,
+				ingredients: const [
+					IngredientItem(name: 'Wholegrain bread (2 slices)', cost: 120.0),
+					IngredientItem(name: 'Canned sardine (1/2 tin)', cost: 220.0),
+					IngredientItem(name: 'Avocado (1/2)', cost: 150.0),
+				],
+			),
+			MealSuggestion(
+				name: 'Lentil & Spinach Stew with Rice',
+				vegetarian: true,
+				usesLocalStaples: true,
+				kcal: 620,
+				ingredients: const [
+					IngredientItem(name: 'Lentils (1 cup cooked)', cost: 180.0),
+					IngredientItem(name: 'Spinach/leafy greens', cost: 120.0),
+					IngredientItem(name: 'Rice (1 cup cooked)', cost: 120.0),
+				],
+			),
+			MealSuggestion(
+				name: 'Eggs, Tomatoes & Greens Wrap',
+				vegetarian: false,
+				usesLocalStaples: true,
+				kcal: 580,
+				ingredients: const [
+					IngredientItem(name: 'Eggs (2)', cost: 150.0),
+					IngredientItem(name: 'Leafy greens (small handful)', cost: 80.0),
+					IngredientItem(name: 'Tomato & onion', cost: 100.0),
+					IngredientItem(name: 'Flatbread/wrap (1)', cost: 120.0),
+				],
+			),
+			MealSuggestion(
+				name: 'Yogurt Parfait with Oats & Berries',
+				vegetarian: true,
+				usesLocalStaples: true,
+				kcal: 450,
+				ingredients: const [
+					IngredientItem(name: 'Plain yogurt (3/4 cup)', cost: 160.0),
+					IngredientItem(name: 'Oats (1/2 cup)', cost: 80.0),
+					IngredientItem(name: 'Seasonal fruit/berries', cost: 150.0),
+				],
+			),
+			MealSuggestion(
+				name: 'Dark Chocolate & Nut Trail Mix (study snack)',
+				vegetarian: true,
+				usesLocalStaples: true,
+				kcal: 300,
+				ingredients: const [
+					IngredientItem(name: 'Dark chocolate (small piece)', cost: 80.0),
+					IngredientItem(name: 'Peanuts/mixed nuts (small handful)', cost: 120.0),
+					IngredientItem(name: 'Raisins/dried fruit (small handful)', cost: 80.0),
+				],
+			),
+		];
+
+		// Region-specific swap-ins to keep things familiar and affordable.
+		if (region == 'Nigeria' || region == 'Ghana' || region == 'Kenya') {
+			return [
+				...base,
+				MealSuggestion(
+					name: 'Beans & Plantain with Greens (folate + magnesium)',
+					vegetarian: true,
+					usesLocalStaples: true,
+					kcal: 650,
+					ingredients: const [
+						IngredientItem(name: 'Beans (1 cup cooked)', cost: 160.0),
+						IngredientItem(name: 'Plantain (1/2)', cost: 100.0),
+						IngredientItem(name: 'Leafy greens (small handful)', cost: 80.0),
+					],
+				),
+			];
+		}
+
+		return base;
 	}
 
 	String _formatCost(double v) {
