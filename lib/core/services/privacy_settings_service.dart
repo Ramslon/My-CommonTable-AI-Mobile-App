@@ -107,28 +107,36 @@ class PrivacySettingsService extends ChangeNotifier {
   }
 
   Future<void> _syncToFirestore(PrivacySettings s) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final db = FirebaseFirestore.instance;
-    await db.collection('users').doc(user.uid).set({
-      'privacy': s.toMap(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final db = FirebaseFirestore.instance;
+      await db.collection('users').doc(user.uid).set({
+        'privacy': s.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // ignore when Firebase is unavailable
+    }
   }
 
   Future<void> loadFromFirestoreIfNewer() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    if (!snap.exists) return;
-    final data = snap.data();
-    if (data == null) return;
-    final remote = (data['privacy'] as Map?)?.cast<String, dynamic>();
-    if (remote == null) return;
-    final remoteSettings = PrivacySettings.fromMap(remote);
-    final local = await load();
-    if (remoteSettings.updatedAt.isAfter(local.updatedAt)) {
-      await save(remoteSettings, syncRemote: false);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (!snap.exists) return;
+      final data = snap.data();
+      if (data == null) return;
+      final remote = (data['privacy'] as Map?)?.cast<String, dynamic>();
+      if (remote == null) return;
+      final remoteSettings = PrivacySettings.fromMap(remote);
+      final local = await load();
+      if (remoteSettings.updatedAt.isAfter(local.updatedAt)) {
+        await save(remoteSettings, syncRemote: false);
+      }
+    } catch (_) {
+      // ignore when Firebase is unavailable
     }
   }
 
@@ -137,14 +145,18 @@ class PrivacySettingsService extends ChangeNotifier {
     required bool value,
     String version = 'v1.0',
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    await FirebaseFirestore.instance.collection('consents').add({
-      'userId': user.uid,
-      'type': type,
-      'value': value,
-      'version': version,
-      'at': FieldValue.serverTimestamp(),
-    });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      await FirebaseFirestore.instance.collection('consents').add({
+        'userId': user.uid,
+        'type': type,
+        'value': value,
+        'version': version,
+        'at': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // ignore when Firebase is unavailable
+    }
   }
 }

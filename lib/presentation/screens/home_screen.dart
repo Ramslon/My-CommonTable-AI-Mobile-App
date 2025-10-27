@@ -92,7 +92,8 @@ class HomeScreen extends StatelessWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 0.95,
+                // Slightly taller cards to avoid vertical overflow on small devices
+                childAspectRatio: 0.82,
               ),
               itemCount: features.length,
               itemBuilder: (context, index) {
@@ -180,24 +181,31 @@ class _FeatureCardWidget extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(feature.icon, color: Colors.white, size: 40),
-          const SizedBox(height: 10),
+          Icon(feature.icon, color: Colors.white, size: 36),
+          const SizedBox(height: 8),
           Text(
             feature.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 16,
+              fontSize: 15,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            feature.description,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          const SizedBox(height: 6),
+          Flexible(
+            child: Text(
+              feature.description,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+            ),
           ),
         ],
       ),

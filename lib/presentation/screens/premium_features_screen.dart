@@ -178,19 +178,23 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 
 						const SizedBox(height: 16),
 						// Wellness report
-						Row(
-							children: [
-								ElevatedButton.icon(
-									onPressed: _generating ? null : _generateReport,
-									icon: const Icon(Icons.auto_awesome),
-									label: Text(_generating ? 'Generating…' : 'Generate AI Wellness Report'),
-									style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-								),
-								const SizedBox(width: 12),
-								if (dietScore != null)
-									Chip(label: Text('Diet Score: ${dietScore!.toStringAsFixed(0)}'), avatar: const Icon(Icons.health_and_safety, color: Colors.green)),
-							],
-						),
+												Wrap(
+													spacing: 12,
+													runSpacing: 8,
+													children: [
+														ElevatedButton.icon(
+															onPressed: _generating ? null : _generateReport,
+															icon: const Icon(Icons.auto_awesome),
+															label: Text(_generating ? 'Generating…' : 'Generate AI Wellness Report'),
+															style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+														),
+														if (dietScore != null)
+															Chip(
+																label: Text('Diet Score: ${dietScore!.toStringAsFixed(0)}'),
+																avatar: const Icon(Icons.health_and_safety, color: Colors.green),
+															),
+													],
+												),
 						if (wellnessReport != null) ...[
 							const SizedBox(height: 12),
 							Card(
@@ -226,23 +230,24 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 						const SizedBox(height: 20),
 						const Text('AI Nutritionist', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 						const SizedBox(height: 8),
-						Row(
-							children: [
-								ElevatedButton.icon(
-									onPressed: _askWithReportContext,
-									icon: const Icon(Icons.question_answer),
-									label: const Text('Ask with report context'),
-								),
-								const SizedBox(width: 12),
-								TextButton(
-									onPressed: () {
-										final ctx = _contextString();
-										_controller.text = 'Considering my data: $ctx';
-									},
-									child: const Text('Insert context'),
-								),
-							],
-						),
+												Wrap(
+													spacing: 12,
+													runSpacing: 8,
+													children: [
+														ElevatedButton.icon(
+															onPressed: _askWithReportContext,
+															icon: const Icon(Icons.question_answer),
+															label: const Text('Ask with report context'),
+														),
+														TextButton(
+															onPressed: () {
+																final ctx = _contextString();
+																_controller.text = 'Considering my data: $ctx';
+															},
+															child: const Text('Insert context'),
+														),
+													],
+												),
 						Container(
 							decoration: BoxDecoration(color: Colors.teal.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12)),
 							padding: const EdgeInsets.all(8),
@@ -401,7 +406,7 @@ class _Tiers extends StatelessWidget {
 	}
 
 	Widget _tierTile(String name, String desc, double price, void Function(String) onSelect) {
-		final priceStr = price == 0 ? 'Free' : '4B2 ${price.toStringAsFixed(2)}/mo';
+		final priceStr = price == 0 ? 'Free' : '\u{1F4B2} ${price.toStringAsFixed(2)}/mo';
 		return Card(
 			child: ListTile(
 				leading: const Icon(Icons.star, color: Colors.amber),

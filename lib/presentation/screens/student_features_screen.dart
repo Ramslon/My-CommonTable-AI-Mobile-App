@@ -996,21 +996,21 @@ class _MealSuggestionCard extends StatelessWidget {
 										children: [
 											Text(suggestion.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
 											const SizedBox(height: 4),
-											Row(
-												children: [
-													Chip(
-														label: Text('${suggestion.kcal} kcal'),
-														backgroundColor: Colors.teal.withValues(alpha: 0.12),
-														side: BorderSide.none,
-													),
-													const SizedBox(width: 8),
-													if (suggestion.vegetarian)
-														const Chip(label: Text('Vegetarian'), side: BorderSide.none),
-													const SizedBox(width: 8),
-													if (suggestion.usesLocalStaples)
-														const Chip(label: Text('Local staples'), side: BorderSide.none),
-												],
-											),
+																						Wrap(
+																							spacing: 8,
+																							runSpacing: 6,
+																							children: [
+																								Chip(
+																									label: Text('${suggestion.kcal} kcal'),
+																									backgroundColor: Colors.teal.withValues(alpha: 0.12),
+																									side: BorderSide.none,
+																								),
+																								if (suggestion.vegetarian)
+																									const Chip(label: Text('Vegetarian'), side: BorderSide.none),
+																								if (suggestion.usesLocalStaples)
+																									const Chip(label: Text('Local staples'), side: BorderSide.none),
+																							],
+																						),
 										],
 									),
 								),

@@ -65,6 +65,10 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 	Future<void> _refreshOffers() async {
 		setState(() { _loadingOffers = true; });
 		try {
+			if (Firebase.apps.isEmpty) {
+				setState(() { _loadingOffers = false; });
+				return;
+			}
 			final p = await PrivacySettingsService().load();
 			if (p.offlineMode) {
 				// Respect offline mode: rely on cache only
@@ -133,6 +137,12 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 
 	Future<void> _saveMeal(_AffordableMeal meal) async {
 		try {
+			if (Firebase.apps.isEmpty) {
+				if (mounted) {
+					ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cloud sync unavailable.')));
+				}
+				return;
+			}
 			final userId = FirebaseAuth.instance.currentUser?.uid;
 			await FirebaseFirestore.instance.collection('lowIncomeMeals').add({
 				'title': meal.title,

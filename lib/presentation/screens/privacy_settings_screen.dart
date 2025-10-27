@@ -27,11 +27,15 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 
   Future<void> _init() async {
-    // Ensure we have a user (anonymous allowed)
-    if (_auth.currentUser == null) {
-      await _auth.signInAnonymously();
+    // Ensure we have a user where possible; otherwise operate locally
+    try {
+      if (_auth.currentUser == null) {
+        await _auth.signInAnonymously();
+      }
+      await _service.loadFromFirestoreIfNewer();
+    } catch (_) {
+      // Firebase not available; fall back to local-only
     }
-    await _service.loadFromFirestoreIfNewer();
     final s = await _service.load();
     if (!mounted) return;
     setState(() {
