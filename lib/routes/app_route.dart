@@ -11,6 +11,7 @@ import 'package:commontable_ai_app/presentation/screens/low_income_features_scre
 import 'package:commontable_ai_app/presentation/screens/premium_features_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/billing_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/privacy_settings_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/community_feed_screen.dart';
 
 class AppRoutes {
   static const String onboarding = '/onboarding';
@@ -25,6 +26,7 @@ class AppRoutes {
   static const String premiumFeatures = '/premium-features';
   static const String billing = '/billing';
   static const String privacySettings = '/privacy-settings';
+  static const String socialCommunity = '/community';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -54,6 +56,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const BillingScreen());
       case privacySettings:
         return MaterialPageRoute(builder: (_) => const PrivacySettingsScreen());
+      case socialCommunity:
+        return MaterialPageRoute(builder: (_) => const CommunityFeedScreen());
       case AppRoutes.settings:
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
       default:

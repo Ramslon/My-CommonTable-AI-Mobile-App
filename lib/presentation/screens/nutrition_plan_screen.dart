@@ -39,7 +39,9 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
   @override
   void initState() {
     super.initState();
-    _calorieCtrl = TextEditingController(text: _goalToCalories(_goal).toString());
+    _calorieCtrl = TextEditingController(
+      text: _goalToCalories(_goal).toString(),
+    );
     _resolveUser();
     _loadHistory();
   }
@@ -65,7 +67,8 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
 
   Future<void> _generate() async {
     FocusScope.of(context).unfocus();
-    final calories = int.tryParse(_calorieCtrl.text.trim()) ?? _goalToCalories(_goal);
+    final calories =
+        int.tryParse(_calorieCtrl.text.trim()) ?? _goalToCalories(_goal);
     setState(() {
       _loading = true;
       _plan = null;
@@ -98,7 +101,9 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       setState(() => _assessment = result);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Assessment failed: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Assessment failed: $e')));
     } finally {
       if (mounted) setState(() => _assessing = false);
     }
@@ -122,11 +127,15 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
         if (_userId != null) 'userId': _userId,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assessment saved')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Assessment saved')));
       await _loadHistory();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
     }
   }
 
@@ -136,7 +145,9 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
         await Firebase.initializeApp();
       }
       await _resolveUser();
-      Query<Map<String, dynamic>> ref = FirebaseFirestore.instance.collection('dietAssessments');
+      Query<Map<String, dynamic>> ref = FirebaseFirestore.instance.collection(
+        'dietAssessments',
+      );
       if (_userId != null) {
         ref = ref.where('userId', isEqualTo: _userId);
       }
@@ -145,7 +156,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       } else if (_historyPeriodFilter == 'weekly') {
         ref = ref.where('period', isEqualTo: 'weekly');
       }
-      final qs = await ref.orderBy('createdAt', descending: true).limit(20).get();
+      final qs = await ref
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .get();
       final points = <_ScorePoint>[];
       for (final d in qs.docs) {
         final data = d.data();
@@ -170,11 +184,15 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       // auth not set up; leave _userId as null
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Meal Plan Generator', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'AI Meal Plan Generator',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
@@ -204,7 +222,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.progressDashboard),
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      AppRoutes.progressDashboard,
+                    ),
                     icon: const Icon(Icons.dashboard_customize_outlined),
                     label: const Text('View Full Progress Dashboard'),
                   ),
@@ -225,7 +246,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Your Goals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const Text(
+              'Your Goals',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -233,9 +257,18 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _goal,
                     items: const [
-                      DropdownMenuItem(value: 'Lose', child: Text('Lose Weight')),
-                      DropdownMenuItem(value: 'Maintain', child: Text('Maintain')),
-                      DropdownMenuItem(value: 'Gain', child: Text('Gain Muscle')),
+                      DropdownMenuItem(
+                        value: 'Lose',
+                        child: Text('Lose Weight'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Maintain',
+                        child: Text('Maintain'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Gain',
+                        child: Text('Gain Muscle'),
+                      ),
                     ],
                     onChanged: (v) {
                       if (v == null) return;
@@ -252,10 +285,17 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                   child: DropdownButtonFormField<MealPlanTimeframe>(
                     initialValue: _timeframe,
                     items: const [
-                      DropdownMenuItem(value: MealPlanTimeframe.daily, child: Text('Daily')),
-                      DropdownMenuItem(value: MealPlanTimeframe.weekly, child: Text('Weekly')),
+                      DropdownMenuItem(
+                        value: MealPlanTimeframe.daily,
+                        child: Text('Daily'),
+                      ),
+                      DropdownMenuItem(
+                        value: MealPlanTimeframe.weekly,
+                        child: Text('Weekly'),
+                      ),
                     ],
-                    onChanged: (v) => setState(() => _timeframe = v ?? _timeframe),
+                    onChanged: (v) =>
+                        setState(() => _timeframe = v ?? _timeframe),
                     decoration: const InputDecoration(labelText: 'Timeframe'),
                   ),
                 ),
@@ -268,13 +308,29 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                   child: DropdownButtonFormField<DietaryPreference>(
                     initialValue: _preference,
                     items: const [
-                      DropdownMenuItem(value: DietaryPreference.omnivore, child: Text('Omnivore')),
-                      DropdownMenuItem(value: DietaryPreference.vegetarian, child: Text('Vegetarian')),
-                      DropdownMenuItem(value: DietaryPreference.vegan, child: Text('Vegan')),
-                      DropdownMenuItem(value: DietaryPreference.lowCarb, child: Text('Low Carb')),
-                      DropdownMenuItem(value: DietaryPreference.highProtein, child: Text('High Protein')),
+                      DropdownMenuItem(
+                        value: DietaryPreference.omnivore,
+                        child: Text('Omnivore'),
+                      ),
+                      DropdownMenuItem(
+                        value: DietaryPreference.vegetarian,
+                        child: Text('Vegetarian'),
+                      ),
+                      DropdownMenuItem(
+                        value: DietaryPreference.vegan,
+                        child: Text('Vegan'),
+                      ),
+                      DropdownMenuItem(
+                        value: DietaryPreference.lowCarb,
+                        child: Text('Low Carb'),
+                      ),
+                      DropdownMenuItem(
+                        value: DietaryPreference.highProtein,
+                        child: Text('High Protein'),
+                      ),
                     ],
-                    onChanged: (v) => setState(() => _preference = v ?? _preference),
+                    onChanged: (v) =>
+                        setState(() => _preference = v ?? _preference),
                     decoration: const InputDecoration(labelText: 'Preference'),
                   ),
                 ),
@@ -288,7 +344,8 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                       DropdownMenuItem(value: 4, child: Text('4 meals/day')),
                       DropdownMenuItem(value: 5, child: Text('5 meals/day')),
                     ],
-                    onChanged: (v) => setState(() => _mealsPerDay = v ?? _mealsPerDay),
+                    onChanged: (v) =>
+                        setState(() => _mealsPerDay = v ?? _mealsPerDay),
                     decoration: const InputDecoration(labelText: 'Meals/Day'),
                   ),
                 ),
@@ -304,7 +361,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
                 onPressed: _loading ? null : _generate,
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('Generate Plan'),
@@ -329,17 +389,23 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
               children: const [
                 Icon(Icons.health_and_safety_outlined, color: Colors.teal),
                 SizedBox(width: 8),
-                Text('AI Dietary Assessment & Risk Analyzer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                Text(
+                  'AI Dietary Assessment & Risk Analyzer',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
               ],
             ),
             const SizedBox(height: 12),
-            Text('Enter foods you ate ${_timeframe == MealPlanTimeframe.daily ? 'today' : 'this week'} (one per line):',
-                style: const TextStyle(color: Colors.black54)),
+            Text(
+              'Enter foods you ate ${_timeframe == MealPlanTimeframe.daily ? 'today' : 'this week'} (one per line):',
+              style: const TextStyle(color: Colors.black54),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _dietTextCtrl,
               decoration: const InputDecoration(
-                hintText: 'e.g. oats with yogurt\nrice and beans\nchicken stew with vegetables',
+                hintText:
+                    'e.g. oats with yogurt\nrice and beans\nchicken stew with vegetables',
                 border: OutlineInputBorder(),
               ),
               maxLines: 5,
@@ -349,7 +415,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
                     onPressed: _assessing ? null : _assess,
                     icon: const Icon(Icons.analytics_outlined),
                     label: Text(_assessing ? 'Assessing...' : 'Assess My Diet'),
@@ -381,7 +450,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Diet Quality Score', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'Diet Quality Score',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -392,8 +464,8 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                 color: pct >= 0.7
                     ? Colors.green
                     : pct >= 0.5
-                        ? Colors.orange
-                        : Colors.red,
+                    ? Colors.orange
+                    : Colors.red,
               ),
             ),
             const SizedBox(height: 6),
@@ -407,7 +479,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                   : a.risks.map((r) => Chip(label: Text(r))).toList(),
             ),
             const SizedBox(height: 12),
-            const Text('AI Suggestions', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'AI Suggestions',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 6),
             _aiText(a.suggestions),
           ],
@@ -424,10 +499,15 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
         if (parsed.base.isNotEmpty) Text(parsed.base),
         if (parsed.bullets != null) ...[
           const SizedBox(height: 8),
-          ...parsed.bullets!.map((b) => Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [const Text('• '), Expanded(child: Text(b))],
-              )),
+          ...parsed.bullets!.map(
+            (b) => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('• '),
+                Expanded(child: Text(b)),
+              ],
+            ),
+          ),
         ],
       ],
     );
@@ -446,7 +526,10 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Diet Quality Progress', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'Diet Quality Progress',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -475,10 +558,21 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                   minY: 0,
                   maxY: 100,
                   titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30)),
-                    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                   ),
                   gridData: FlGridData(show: true, drawVerticalLine: false),
                   lineBarsData: [
@@ -488,7 +582,7 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                       barWidth: 3,
                       color: Colors.teal,
                       dotData: const FlDotData(show: false),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -547,7 +641,10 @@ class _DayCard extends StatelessWidget {
                     day.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -583,17 +680,24 @@ class _MealTile extends StatelessWidget {
         const SizedBox(height: 8),
         Text(meal.title, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
-        ...meal.items.map((i) => Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(child: Text(i.name)),
-                Text('${i.calories} kcal', style: const TextStyle(color: Colors.black54)),
-              ],
-            )),
+        ...meal.items.map(
+          (i) => Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(child: Text(i.name)),
+              Text(
+                '${i.calories} kcal',
+                style: const TextStyle(color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
         Align(
           alignment: Alignment.centerRight,
-          child: Text('Total: ${meal.totalCalories} kcal · P ${meal.totalProtein} · C ${meal.totalCarbs} · F ${meal.totalFats}',
-              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          child: Text(
+            'Total: ${meal.totalCalories} kcal · P ${meal.totalProtein} · C ${meal.totalCarbs} · F ${meal.totalFats}',
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
         ),
         const Divider(height: 16),
       ],
@@ -627,5 +731,8 @@ _ParsedReply _parseBullets(String text) {
     }
   }
   final base = baseLines.join('\n').trim();
-  return _ParsedReply(base.isEmpty ? text : base, bullets.isEmpty ? null : bullets);
+  return _ParsedReply(
+    base.isEmpty ? text : base,
+    bullets.isEmpty ? null : bullets,
+  );
 }

@@ -47,6 +47,13 @@ class HomeScreen extends StatelessWidget {
         route: AppRoutes.chatbot,
       ),
       _FeatureCard(
+        title: 'Community',
+        description: 'Share tips, join challenges, and stay motivated.',
+        icon: Icons.groups_2_outlined,
+        color: Colors.blueGrey.shade400,
+        route: AppRoutes.socialCommunity,
+      ),
+      _FeatureCard(
         title: 'Progress Tracker',
         description: 'Visualize your nutrition and health journey over time.',
         icon: Icons.show_chart,
