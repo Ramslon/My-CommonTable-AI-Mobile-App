@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
+import 'package:commontable_ai_app/core/services/app_settings.dart';
 
 /// Affordable Meal Suggestions (Student-focused)
 /// - Budget-friendly ideas using common, low-cost staples
@@ -26,13 +28,139 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	List<MealSuggestion> _generated = [];
 	final Set<String> _selected = {};
 
+	// Mood + AI advice state
+	String? _selectedMoodKey;
+	String? _selectedMoodLabel;
+	String? _selectedMoodEmoji;
+	String? _aiMoodAdvice;
+	bool _adviceLoading = false;
+	final List<_MoodEntry> _moodHistory = [];
+
+	static const List<MoodOption> _moodOptions = [
+		MoodOption(key: 'stressed', emoji: '😓', label: 'Stressed'),
+		MoodOption(key: 'anxious', emoji: '😟', label: 'Anxious'),
+		MoodOption(key: 'low_energy', emoji: '😴', label: 'Low energy'),
+		MoodOption(key: 'sad', emoji: '😔', label: 'Sad'),
+		MoodOption(key: 'overwhelmed', emoji: '😵', label: 'Overwhelmed'),
+		MoodOption(key: 'okay', emoji: '🙂', label: 'Okay'),
+		MoodOption(key: 'happy', emoji: '😄', label: 'Happy'),
+	];
+
 	@override
 	void initState() {
 		super.initState();
 		_allSuggestions = _buildSuggestionCatalog(_region);
 		_mentalHealth = _buildMentalHealthSuggestions(_region);
+		_loadRecentMoodLogs();
 	}
 
+	Future<void> _loadRecentMoodLogs() async {
+		try {
+			if (Firebase.apps.isEmpty) {
+				await Firebase.initializeApp();
+			}
+			final qs = await FirebaseFirestore.instance
+				.collection('studentMoodLogs')
+				.orderBy('createdAt', descending: true)
+				.limit(10)
+				.get();
+			final items = qs.docs.map((d) {
+				final data = d.data();
+				final created = DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now();
+				return _MoodEntry(
+					key: data['moodKey'] ?? '',
+					label: data['moodLabel'] ?? '',
+					emoji: data['emoji'] ?? '🙂',
+					createdAt: created,
+				);
+			}).toList();
+			setState(() {
+				_moodHistory
+					..clear()
+					..addAll(items);
+			});
+		} catch (_) {
+			// silently ignore if Firestore unavailable
+		}
+	}
+
+	String _friendlyTime(DateTime dt) {
+		final now = DateTime.now();
+		final isToday = now.year == dt.year && now.month == dt.month && now.day == dt.day;
+		if (isToday) {
+			final hh = dt.hour.toString().padLeft(2, '0');
+			final mm = dt.minute.toString().padLeft(2, '0');
+			return 'Today $hh:$mm';
+		}
+		return '${dt.month}/${dt.day}';
+	}
+
+	Future<void> _getAiMoodAdvice() async {
+		if (_selectedMoodLabel == null) return;
+		setState(() {
+			_adviceLoading = true;
+			_aiMoodAdvice = null;
+		});
+		try {
+			final provider = await AppSettings().getInsightsProvider();
+			final budgetPerDay = double.tryParse(_budgetCtrl.text.trim());
+			final svc = NutritionInsightsService();
+			final advice = await svc.generateMoodSupport(
+				mood: _selectedMoodLabel!,
+				region: _region,
+				vegetarianOnly: _vegetarianOnly,
+				useLocalStaples: _useLocalStaples,
+				budgetPerDay: budgetPerDay,
+				provider: provider,
+			);
+			setState(() {
+				_aiMoodAdvice = advice;
+				_moodHistory.insert(
+					0,
+					_MoodEntry(
+						key: _selectedMoodKey ?? '',
+						label: _selectedMoodLabel ?? '',
+						emoji: _selectedMoodEmoji ?? '🙂',
+						createdAt: DateTime.now(),
+					),
+				);
+			});
+			await _saveMoodLogToFirestore(
+				key: _selectedMoodKey ?? '',
+				label: _selectedMoodLabel ?? '',
+				emoji: _selectedMoodEmoji ?? '🙂',
+				advice: advice,
+			); 
+		} catch (e) {
+			if (!mounted) return;
+			ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to get AI suggestions: $e')));
+		} finally {
+			if (mounted) {
+				setState(() => _adviceLoading = false);
+			}
+		}
+	}
+
+	Future<void> _saveMoodLogToFirestore({required String key, required String label, required String emoji, required String advice}) async {
+		try {
+			if (Firebase.apps.isEmpty) {
+				await Firebase.initializeApp();
+			}
+			await FirebaseFirestore.instance.collection('studentMoodLogs').add({
+				'createdAt': DateTime.now().toIso8601String(),
+				'moodKey': key,
+				'moodLabel': label,
+				'emoji': emoji,
+				'region': _region,
+				'vegetarianOnly': _vegetarianOnly,
+				'useLocalStaples': _useLocalStaples,
+				'budgetPerDay': double.tryParse(_budgetCtrl.text.trim()),
+				'advice': advice,
+			});
+		} catch (_) {
+			// non-blocking
+		}
+	}
 	@override
 	void dispose() {
 		_budgetCtrl.dispose();
@@ -92,6 +220,8 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 					children: [
 						_buildForm(),
 						const SizedBox(height: 16),
+						_buildMoodSection(),
+						const SizedBox(height: 16),
 						if (_loading) const Center(child: CircularProgressIndicator()),
 						if (!_loading && _generated.isNotEmpty) _buildResults(),
 						// Mental health nutrition section (always visible)
@@ -128,6 +258,107 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 								),
 							),
 						),
+		);
+	}
+
+	Widget _buildMoodSection() {
+		return Card(
+			elevation: 2,
+			shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+			child: Padding(
+				padding: const EdgeInsets.all(16),
+				child: Column(
+					crossAxisAlignment: CrossAxisAlignment.start,
+					children: [
+						Row(
+							children: const [
+								Icon(Icons.emoji_emotions_outlined, color: Colors.teal),
+								SizedBox(width: 8),
+								Expanded(
+									child: Text('How are you feeling today?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+								),
+							],
+						),
+						const SizedBox(height: 8),
+						Text('Choose a mood to get supportive nutrition ideas', style: TextStyle(color: Colors.black.withValues(alpha: 0.7))),
+						const SizedBox(height: 12),
+						Wrap(
+							spacing: 8,
+							runSpacing: 8,
+							children: _moodOptions.map((m) {
+								final selected = m.key == _selectedMoodKey;
+								return ChoiceChip(
+									selected: selected,
+									label: Row(
+										mainAxisSize: MainAxisSize.min,
+										children: [Text(m.emoji, style: const TextStyle(fontSize: 18)), const SizedBox(width: 6), Text(m.label)],
+									),
+									selectedColor: Colors.teal.withValues(alpha: 0.15),
+									onSelected: (_) {
+									setState(() {
+										_selectedMoodKey = m.key;
+										_selectedMoodLabel = m.label;
+										_selectedMoodEmoji = m.emoji;
+									});
+								},
+								shape: StadiumBorder(side: BorderSide(color: selected ? Colors.teal : Colors.grey.shade300)),
+							);
+							}).toList(),
+						),
+						const SizedBox(height: 12),
+						SizedBox(
+							width: double.infinity,
+							child: ElevatedButton.icon(
+								style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+								onPressed: (_selectedMoodKey == null || _adviceLoading) ? null : _getAiMoodAdvice,
+								icon: const Icon(Icons.auto_awesome),
+								label: Text(_adviceLoading ? 'Getting suggestions…' : 'Get AI Suggestions for My Mood'),
+							),
+						),
+						if (_aiMoodAdvice != null) ...[
+							const SizedBox(height: 12),
+							Container(
+								width: double.infinity,
+								padding: const EdgeInsets.all(12),
+								decoration: BoxDecoration(
+									color: Colors.teal.withValues(alpha: 0.06),
+									borderRadius: BorderRadius.circular(12),
+								),
+								child: Column(
+									crossAxisAlignment: CrossAxisAlignment.start,
+									children: [
+										const Text('You\'ve got this 💛', style: TextStyle(fontWeight: FontWeight.w700)),
+										const SizedBox(height: 6),
+										Text(_aiMoodAdvice!),
+									],
+								),
+							),
+						],
+						const SizedBox(height: 12),
+						const Text('Recent moods', style: TextStyle(fontWeight: FontWeight.w700)),
+						const SizedBox(height: 8),
+						if (_moodHistory.isEmpty)
+							Text('No recent moods yet', style: TextStyle(color: Colors.black.withValues(alpha: 0.6)))
+						else
+							SingleChildScrollView(
+								scrollDirection: Axis.horizontal,
+								child: Row(
+									children: _moodHistory
+										.map((e) => Padding(
+											padding: const EdgeInsets.only(right: 12),
+											child: Column(
+												children: [
+													Text(e.emoji, style: const TextStyle(fontSize: 20)),
+													Text(_friendlyTime(e.createdAt), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+												],
+											),
+										))
+										.toList(),
+								),
+							),
+					],
+				),
+			),
 		);
 	}
 
@@ -847,5 +1078,20 @@ class MealSuggestion {
 	});
 
 	double get totalCost => ingredients.fold(0, (s, i) => s + i.cost);
+}
+
+class MoodOption {
+	final String key;
+	final String emoji;
+	final String label;
+	const MoodOption({required this.key, required this.emoji, required this.label});
+}
+
+class _MoodEntry {
+	final String key;
+	final String label;
+	final String emoji;
+	final DateTime createdAt;
+	const _MoodEntry({required this.key, required this.label, required this.emoji, required this.createdAt});
 }
 

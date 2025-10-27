@@ -39,6 +39,46 @@ class NutritionInsightsService {
     }
   }
 
+  /// Mood-based nutrition guidance using the same provider selection.
+  Future<String> generateMoodSupport({
+    required String mood,
+    String? region,
+    bool vegetarianOnly = false,
+    bool useLocalStaples = true,
+    double? budgetPerDay,
+    InsightsProvider? provider,
+  }) async {
+    final chosen = provider ?? _autoProvider;
+    switch (chosen) {
+      case InsightsProvider.gemini:
+        try {
+          return await _callGeminiMood(
+            mood: mood,
+            region: region,
+            vegetarianOnly: vegetarianOnly,
+            useLocalStaples: useLocalStaples,
+            budgetPerDay: budgetPerDay,
+          );
+        } catch (e) {
+          return 'AI mood support (Gemini) unavailable: $e\n\n${_simulatedMood(mood, region, vegetarianOnly, useLocalStaples, budgetPerDay)}';
+        }
+      case InsightsProvider.huggingFace:
+        try {
+          return await _callHFMood(
+            mood: mood,
+            region: region,
+            vegetarianOnly: vegetarianOnly,
+            useLocalStaples: useLocalStaples,
+            budgetPerDay: budgetPerDay,
+          );
+        } catch (e) {
+          return 'AI mood support (HF) unavailable: $e\n\n${_simulatedMood(mood, region, vegetarianOnly, useLocalStaples, budgetPerDay)}';
+        }
+      case InsightsProvider.simulated:
+        return _simulatedMood(mood, region, vegetarianOnly, useLocalStaples, budgetPerDay);
+    }
+  }
+
   String _simulatedSummary(Map<String, double> intake) {
     final calories = intake['Calories (kcal)'] ?? 0;
     final protein = intake['Protein (g)'] ?? 0;
@@ -140,5 +180,128 @@ class NutritionInsightsService {
     return 'You are a nutrition coach. Given today\'s intake: ' 
         'calories=$calories kcal, protein=$protein g, carbs=$carbs g, fat=$fat g, fiber=$fiber g, sodium=$sodium mg. '
         'Provide 3-5 short, actionable suggestions to improve balance. Keep it under 80 words.';
+  }
+
+  String _buildMoodPrompt({
+    required String mood,
+    String? region,
+    bool vegetarianOnly = false,
+    bool useLocalStaples = true,
+    double? budgetPerDay,
+  }) {
+    final ctx = [
+      if (region != null) 'region=$region',
+      if (vegetarianOnly) 'vegetarianOnly=true',
+      if (useLocalStaples) 'localStaples=true',
+  if (budgetPerDay != null) 'budgetPerDay=${budgetPerDay.toStringAsFixed(0)}',
+    ].join(', ');
+
+    return 'You are a supportive student nutrition coach. The student feels "$mood". '
+        '${ctx.isNotEmpty ? 'Context: $ctx. ' : ''}'
+        'In 4-6 brief bullets, suggest foods/snacks/meals that may help mood (e.g., omega-3 fish, legumes, yogurt/fermented foods, oats/whole grains, leafy greens, dark chocolate in moderation). '
+        'Include 2-3 budget-friendly ideas using local staples if possible. Keep it under 110 words. Be gentle and encouraging.';
+  }
+
+  String _simulatedMood(String mood, String? region, bool vegetarianOnly, bool useLocalStaples, double? budgetPerDay) {
+    final tips = <String>[
+      'Try oats with yogurt and banana for steady energy and gut support.',
+      'Add beans or lentils for magnesium and fiber to support stress balance.',
+      'Include a small portion of oily fish or sardine for omega-3s (or flax/chia if vegetarian).',
+      'Leafy greens with a simple grain (rice or wholegrain bread) can be grounding.',
+      'A square of dark chocolate with nuts can be a mindful study snack.',
+    ];
+    return 'For how you\'re feeling ($mood), here are supportive ideas:\n\n${tips.map((t) => '• $t').join('\n')}';
+  }
+
+  Future<String> _callGeminiMood({
+    required String mood,
+    String? region,
+    bool vegetarianOnly = false,
+    bool useLocalStaples = true,
+    double? budgetPerDay,
+  }) async {
+    if (_geminiKey.isEmpty) throw Exception('Missing GEMINI_API_KEY');
+    final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiKey');
+    final prompt = _buildMoodPrompt(
+      mood: mood,
+      region: region,
+      vegetarianOnly: vegetarianOnly,
+      useLocalStaples: useLocalStaples,
+      budgetPerDay: budgetPerDay,
+    );
+
+    final body = {
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt}
+          ]
+        }
+      ]
+    };
+
+    final resp = await http
+        .post(uri, headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 20));
+
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final candidates = (data['candidates'] as List?) ?? const [];
+      if (candidates.isNotEmpty) {
+        final content = candidates.first['content'] as Map<String, dynamic>?;
+        final parts = (content?['parts'] as List?) ?? const [];
+        final text = parts.map((p) => p['text']).whereType<String>().join('\n').trim();
+        if (text.isNotEmpty) return text;
+      }
+      throw Exception('No text in Gemini response');
+    } else {
+      throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
+    }
+  }
+
+  Future<String> _callHFMood({
+    required String mood,
+    String? region,
+    bool vegetarianOnly = false,
+    bool useLocalStaples = true,
+    double? budgetPerDay,
+  }) async {
+    if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
+    final model = _hfModel;
+    final uri = Uri.parse('https://api-inference.huggingface.co/models/$model');
+    final prompt = _buildMoodPrompt(
+      mood: mood,
+      region: region,
+      vegetarianOnly: vegetarianOnly,
+      useLocalStaples: useLocalStaples,
+      budgetPerDay: budgetPerDay,
+    );
+    final headers = {
+      'Authorization': 'Bearer $_hfKey',
+      'Content-Type': 'application/json',
+    };
+    final body = jsonEncode({'inputs': prompt, 'parameters': {'max_new_tokens': 180, 'temperature': 0.3}});
+
+    final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 20));
+
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      final data = jsonDecode(resp.body);
+      if (data is List && data.isNotEmpty) {
+        final first = data.first;
+        if (first is Map<String, dynamic>) {
+          final txt = first['generated_text'] ?? first['summary_text'] ?? first['text'];
+          if (txt is String && txt.trim().isNotEmpty) return txt.trim();
+        } else if (first is String && first.trim().isNotEmpty) {
+          return first.trim();
+        }
+      } else if (data is Map<String, dynamic>) {
+        final txt = data['generated_text'] ?? data['summary_text'] ?? data['text'];
+        if (txt is String && txt.trim().isNotEmpty) return txt.trim();
+      }
+      throw Exception('Unexpected HF response shape');
+    } else {
+      throw Exception('HF HTTP ${resp.statusCode}: ${resp.body}');
+    }
   }
 }
