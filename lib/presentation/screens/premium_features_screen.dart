@@ -214,6 +214,14 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 						const Text('Subscription', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 						const SizedBox(height: 8),
 						_Tiers(onSelect: _saveSubscription),
+									Align(
+										alignment: Alignment.centerLeft,
+										child: TextButton.icon(
+											onPressed: () => Navigator.pushNamed(context, '/billing'),
+											icon: const Icon(Icons.credit_card),
+											label: const Text('Manage Billing'),
+										),
+									),
 
 						const SizedBox(height: 20),
 						const Text('AI Nutritionist', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
