@@ -1,7 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
-class ProgressDashboardScreen extends StatelessWidget {
+class ProgressDashboardScreen extends StatefulWidget {
   const ProgressDashboardScreen({super.key});
+
+  @override
+  State<ProgressDashboardScreen> createState() => _ProgressDashboardScreenState();
+}
+
+class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureInit();
+  }
+
+  Future<void> _ensureInit() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      _userId = FirebaseAuth.instance.currentUser?.uid;
+      if (mounted) setState(() {});
+    } catch (_) {
+      // ignore if auth not configured
+    }
+  }
+
+  Stream<List<_AssessmentDoc>> _assessmentsStream() {
+    Query<Map<String, dynamic>> ref = FirebaseFirestore.instance
+        .collection('dietAssessments')
+        .orderBy('createdAt', descending: true)
+        .limit(30);
+    if (_userId != null) {
+      ref = ref.where('userId', isEqualTo: _userId);
+    }
+    return ref.snapshots().map((snap) => snap.docs.map((d) => _AssessmentDoc.from(d.data())).toList());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,227 +51,162 @@ class ProgressDashboardScreen extends StatelessWidget {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 🔹 Overview stats
-            Row(
-              children: const [
-                Expanded(
-                  child: _StatCard(
-                    title: 'Calories',
-                    value: '1,920 kcal',
-                    color: Colors.orange,
-                    icon: Icons.local_fire_department,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Protein',
-                    value: '95 g',
-                    color: Colors.green,
-                    icon: Icons.fitness_center,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: const [
-                Expanded(
-                  child: _StatCard(
-                    title: 'Carbs',
-                    value: '210 g',
-                    color: Colors.blue,
-                    icon: Icons.bakery_dining,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Fats',
-                    value: '58 g',
-                    color: Colors.purple,
-                    icon: Icons.opacity,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // 🔹 Daily intake ring
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+      body: StreamBuilder<List<_AssessmentDoc>>(
+        stream: _assessmentsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final items = snapshot.data ?? const [];
+          if (items.isEmpty) {
+            return Center(
               child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: const [
-                    _RingProgress(
-                      label: 'Daily Intake',
-                      valueLabel: '1,920 / 2,400',
-                      value: 0.80,
-                      color: Colors.orange,
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Today\'s Summary', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          SizedBox(height: 8),
-                          _MacroRow(label: 'Protein', percent: 0.40, color: Colors.green),
-                          SizedBox(height: 8),
-                          _MacroRow(label: 'Carbs', percent: 0.35, color: Colors.blue),
-                          SizedBox(height: 8),
-                          _MacroRow(label: 'Fats', percent: 0.25, color: Colors.purple),
-                        ],
-                      ),
-                    ),
+                    Icon(Icons.insights_outlined, size: 48, color: Colors.grey),
+                    SizedBox(height: 8),
+                    Text('No assessments yet', style: TextStyle(fontWeight: FontWeight.w700)),
+                    SizedBox(height: 4),
+                    Text('Save a diet assessment to see your progress here.', textAlign: TextAlign.center),
                   ],
                 ),
               ),
-            ),
+            );
+          }
 
-            const Text(
-              "Your Weekly Nutrition Summary",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            // 📊 Calories (simple bar display)
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          final latest = items.first;
+          final last7 = items.take(7).toList().reversed.toList();
+          final last14 = items.take(14).toList().reversed.toList();
+
+          // Overview averages for last 7 days
+          double avgCal = 0, avgPro = 0, avgCarb = 0, avgFat = 0;
+          for (final it in last7) {
+            avgCal += it.calories;
+            avgPro += it.protein;
+            avgCarb += it.carbs;
+            avgFat += it.fat;
+          }
+          final div = last7.isEmpty ? 1 : last7.length.toDouble();
+          avgCal /= div;
+          avgPro /= div;
+          avgCarb /= div;
+          avgFat /= div;
+
+          // Daily intake ring from latest
+          const targetCal = 2400.0;
+          final ringVal = (latest.calories / targetCal).clamp(0.0, 1.0);
+
+          // Macro percents from latest
+          final macroKcal = (latest.protein * 4) + (latest.carbs * 4) + (latest.fat * 9);
+          final pctPro = macroKcal == 0 ? 0.0 : (latest.protein * 4) / macroKcal;
+          final pctCarb = macroKcal == 0 ? 0.0 : (latest.carbs * 4) / macroKcal;
+          final pctFat = macroKcal == 0 ? 0.0 : (latest.fat * 9) / macroKcal;
+
+          // Weekly calories bar (last 7 documents)
+          final barLabels = last7.map((e) => DateFormat('E').format(e.createdAt)).toList();
+          final barValues = last7.map((e) => e.calories.round()).toList();
+          final maxBar = (barValues.isEmpty ? 0 : (barValues.reduce((a, b) => a > b ? a : b))) + 200;
+
+          // 2-week trend of health score
+          final trend = last14.map((e) => e.healthScore.round()).toList();
+          final maxTrend = 100;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Overview stats
+                Row(
                   children: [
-                    const Text(
-                      "Calorie Intake (kcal)",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 12),
-                    _SimpleBarChart(
-                      labels: const ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
-                      values: const [1800, 2000, 1750, 2200, 1900, 2500, 2100],
-                      maxValue: 2600,
-                      barColor: Colors.green,
-                    ),
+                    Expanded(child: _StatCard(title: 'Calories', value: '${avgCal.toStringAsFixed(0)} kcal (avg 7d)', color: Colors.orange, icon: Icons.local_fire_department)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _StatCard(title: 'Protein', value: '${avgPro.toStringAsFixed(0)} g (avg 7d)', color: Colors.green, icon: Icons.fitness_center)),
                   ],
                 ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 🥗 Macronutrient Breakdown (simple progress rows)
-            const Text(
-              "Macronutrient Breakdown",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: const [
-                    _MacroRow(label: 'Protein', percent: 0.40, color: Colors.green),
-                    SizedBox(height: 10),
-                    _MacroRow(label: 'Carbs', percent: 0.35, color: Colors.orange),
-                    SizedBox(height: 10),
-                    _MacroRow(label: 'Fats', percent: 0.25, color: Colors.redAccent),
-                    SizedBox(height: 12),
-                    Text("Balanced macros for your goals", style: TextStyle(color: Colors.black54)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: _StatCard(title: 'Carbs', value: '${avgCarb.toStringAsFixed(0)} g (avg 7d)', color: Colors.blue, icon: Icons.bakery_dining)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _StatCard(title: 'Fats', value: '${avgFat.toStringAsFixed(0)} g (avg 7d)', color: Colors.purple, icon: Icons.opacity)),
                   ],
                 ),
-              ),
-            ),
 
-            const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-            // 💪 Daily Goals Summary
-            const Text(
-              "Daily Goal Progress",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _goalTile("Water Intake", "2.3L / 3L", 0.76, Colors.blue),
-            _goalTile("Protein Target", "95g / 120g", 0.79, Colors.green),
-            _goalTile("Calories Burned", "450 / 600 kcal", 0.75, Colors.orange),
-
-            const SizedBox(height: 24),
-
-            // 🔹 Trends (simple line chart)
-            const Text(
-              "2-Week Trend",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: const Padding(
-                padding: EdgeInsets.all(16),
-                child: SizedBox(
-                  height: 160,
-                  child: _SimpleLineChart(
-                    points: [
-                      1800, 1950, 2100, 2000, 2200, 2350, 2100,
-                      2050, 2150, 2250, 2400, 2300, 2200, 2100,
-                    ],
-                    maxValue: 2500,
-                    lineColor: Colors.green,
+                // Daily intake ring
+                Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        _RingProgress(label: 'Latest Intake', valueLabel: '${latest.calories.toStringAsFixed(0)} / ${targetCal.toStringAsFixed(0)}', value: ringVal, color: Colors.orange),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Latest Summary", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 8),
+                              _MacroRow(label: 'Protein', percent: pctPro, color: Colors.green),
+                              const SizedBox(height: 8),
+                              _MacroRow(label: 'Carbs', percent: pctCarb, color: Colors.blue),
+                              const SizedBox(height: 8),
+                              _MacroRow(label: 'Fats', percent: pctFat, color: Colors.purple),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+
+                const Text("Your Weekly Nutrition Summary", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Calorie Intake (kcal)", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        _SimpleBarChart(labels: barLabels, values: barValues, maxValue: maxBar, barColor: Colors.green),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                const Text("Diet Quality Score Trend", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      height: 160,
+                      child: _SimpleLineChart(points: trend, maxValue: maxTrend, lineColor: Colors.teal),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _goalTile(String title, String value, double progress, Color color) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-            const SizedBox(height: 6),
-            LinearProgressIndicator(
-              value: progress,
-              color: color,
-              backgroundColor: Colors.grey.shade300,
-              minHeight: 8,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            const SizedBox(height: 6),
-            Text(value, style: const TextStyle(color: Colors.black54)),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // Simple bar chart using Rows and Containers
@@ -482,4 +457,37 @@ class _LineChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _AssessmentDoc {
+  final DateTime createdAt;
+  final String period;
+  final double healthScore;
+  final double calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+
+  _AssessmentDoc({
+    required this.createdAt,
+    required this.period,
+    required this.healthScore,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+  });
+
+  static _AssessmentDoc from(Map<String, dynamic> data) {
+    final intake = (data['intake'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return _AssessmentDoc(
+      createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
+      period: data['period'] ?? 'daily',
+      healthScore: (data['healthScore'] as num?)?.toDouble() ?? 0,
+      calories: (intake['Calories (kcal)'] as num?)?.toDouble() ?? (data['calories'] as num?)?.toDouble() ?? 0,
+      protein: (intake['Protein (g)'] as num?)?.toDouble() ?? 0,
+      carbs: (intake['Carbs (g)'] as num?)?.toDouble() ?? 0,
+      fat: (intake['Fat (g)'] as num?)?.toDouble() ?? 0,
+    );
+  }
 }
