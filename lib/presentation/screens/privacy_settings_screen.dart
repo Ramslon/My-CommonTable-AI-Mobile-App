@@ -129,6 +129,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   'Legal transparency',
                   [
                     ListTile(
+                      leading: const Icon(Icons.balance_outlined),
+                      title: const Text('AI Bias & Fairness'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.pushNamed(context, '/ai-bias-fairness'),
+                    ),
+                    ListTile(
                       leading: const Icon(Icons.privacy_tip_outlined),
                       title: const Text('Privacy Policy'),
                       trailing: const Icon(Icons.chevron_right),

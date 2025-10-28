@@ -113,6 +113,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Support',
               children: [
                 _buildSettingsTile(
+                  icon: Icons.balance_outlined,
+                  title: 'AI Bias & Fairness',
+                  subtitle: 'How we ensure inclusive, culturally-aware guidance',
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.aiBiasFairness),
+                ),
+                _buildSettingsTile(
                   icon: Icons.help_outline,
                   title: 'Help & FAQ',
                   subtitle: 'Get help and support',
