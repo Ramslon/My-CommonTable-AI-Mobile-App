@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 class DietAssessmentService {
-  static const _calorieNinjasKey = String.fromEnvironment('CALORIE_NINJAS_KEY');
+  static String get _calorieNinjasKey =>
+      (dotenv.maybeGet('CALORIE_NINJAS_KEY') ?? const String.fromEnvironment('CALORIE_NINJAS_KEY'));
 
   /// Analyze a list of diet entries (free text foods) and return a scored assessment.
   /// If CALORIE_NINJAS_KEY is present, attempts to enrich macros via API; otherwise uses simulated lookup.

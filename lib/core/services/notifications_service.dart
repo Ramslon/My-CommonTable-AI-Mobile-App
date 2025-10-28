@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:commontable_ai_app/core/services/app_settings.dart';
 
 // Top-level background handler must be a global function.
 @pragma('vm:entry-point')
@@ -15,8 +16,10 @@ class NotificationsService {
   static final StreamController<RemoteMessage> _messages =
       StreamController.broadcast();
   static Stream<RemoteMessage> get messages => _messages.stream;
+  static bool _enabled = true;
 
   static Future<void> init() async {
+    _enabled = await AppSettings().getNotificationsEnabled();
     // Local notifications init
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
@@ -36,13 +39,13 @@ class NotificationsService {
     await androidPlugin?.createNotificationChannel(channel);
 
     // Request FCM permission (Android 13+ & iOS)
-    await _fm.requestPermission(alert: true, badge: true, sound: true);
+  await _fm.requestPermission(alert: true, badge: true, sound: true);
 
     // Foreground handler
     FirebaseMessaging.onMessage.listen((msg) async {
       _messages.add(msg);
       final notification = msg.notification;
-      if (notification != null) {
+      if (_enabled && notification != null) {
         await _plugin.show(
           notification.hashCode,
           notification.title,
@@ -59,5 +62,13 @@ class NotificationsService {
         );
       }
     });
+  }
+
+  static Future<void> setEnabled(bool enabled) async {
+    _enabled = enabled;
+    await AppSettings().setNotificationsEnabled(enabled);
+    if (!enabled) {
+      await _plugin.cancelAll();
+    }
   }
 }

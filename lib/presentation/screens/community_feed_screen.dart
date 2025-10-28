@@ -256,7 +256,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
               stream: _svc.streamLeaderboard(),
               builder: (context, snapLb) {
                 final lb = snapLb.data ?? [];
-                if (lb.isEmpty) return const Text('No participants yet.');
+                if (lb.isEmpty) {
+                  return const Text('No participants yet.');
+                }
                 return Column(
                   children: lb.asMap().entries.map((e) {
                     final idx = e.key + 1;
@@ -374,10 +376,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                 future: _rec.recommendForUser(p.userId, _latest),
                 builder: (context, snap) {
                   final recs = snap.data ?? [];
-                  if (recs.isEmpty)
+                  if (recs.isEmpty) {
                     return const Text(
                       'Follow the feed to see personalized posts here.',
                     );
+                  }
                   return Column(
                     children: recs
                         .take(3)

@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:commontable_ai_app/core/services/health_sync_service.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/chat_coach_service.dart';
+import 'package:commontable_ai_app/core/services/app_settings.dart';
+import 'package:commontable_ai_app/core/services/currency_service.dart';
 
 class PremiumFeaturesScreen extends StatefulWidget {
 	const PremiumFeaturesScreen({super.key});
@@ -26,6 +28,8 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 	double? dietScore; // last health score from assessments
 	String? wellnessReport;
 	bool _generating = false;
+  String _currency = 'usd';
+  String? _tier; // basic|plus|premium
 
 	// Mini chat
 	final List<_Msg> _msgs = [];
@@ -41,9 +45,13 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 		if (Firebase.apps.isEmpty) {
 			try { await Firebase.initializeApp(); } catch (_) {}
 		}
+    _currency = await AppSettings().getCurrencyCode();
+    _tier = await AppSettings().getSubscriptionTier();
 		await _loadLatestAssessment();
 		await _syncWearablesOrSimulate();
 	}
+
+  bool get _hasPlus => _tier == 'plus' || _tier == 'premium';
 
 	Future<void> _loadLatestAssessment() async {
 		try {
@@ -113,12 +121,39 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 				'tier': tier,
 				'updatedAt': DateTime.now().toIso8601String(),
 			}, SetOptions(merge: true));
+			await AppSettings().setSubscriptionTier(tier);
+			if (mounted) setState(() => _tier = tier);
 			if (!mounted) return;
 			ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Subscription set to $tier.')));
 		} catch (e) {
 			if (!mounted) return;
 			ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
 		}
+	}
+
+	void _requirePlus(VoidCallback action) {
+		if (_hasPlus) {
+			action();
+			return;
+		}
+		showDialog(
+			context: context,
+			builder: (ctx) => AlertDialog(
+				title: const Text('Upgrade to Plus'),
+				content: const Text('This feature is available on Plus and Premium plans.'),
+				actions: [
+					TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Not now')),
+					TextButton(
+						onPressed: () {
+							Navigator.pop(ctx);
+							// Scroll to subscription section if in view; for now, just show a hint
+							ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scroll to Subscription to upgrade.')));
+						},
+						child: const Text('View plans'),
+					),
+				],
+			),
+		);
 	}
 
 	Future<void> _askWithReportContext() async {
@@ -166,11 +201,10 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 						Wrap(
 							spacing: 8,
 							children: [
-								Chip(label: Text(platformLabel), avatar: const Icon(Icons.watch)),
-								const Chip(label: Text('Smart Scale (optional)'), avatar: Icon(Icons.monitor_weight)),
-								const Chip(label: Text('Blood Pressure (optional)'), avatar: Icon(Icons.favorite)),
-							],
-						),
+								Chip(avatar: const Icon(Icons.watch), label: Text(platformLabel)),
+								const Chip(avatar: Icon(Icons.favorite), label: Text('Blood Pressure (optional)')),
+								],
+							),
 						const SizedBox(height: 16),
 
 						// Wearable metrics quick view
@@ -183,7 +217,9 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 													runSpacing: 8,
 													children: [
 														ElevatedButton.icon(
-															onPressed: _generating ? null : _generateReport,
+															onPressed: _generating
+																? null
+																: () => _requirePlus(_generateReport),
 															icon: const Icon(Icons.auto_awesome),
 															label: Text(_generating ? 'Generating…' : 'Generate AI Wellness Report'),
 															style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
@@ -217,7 +253,7 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 						const SizedBox(height: 20),
 						const Text('Subscription', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 						const SizedBox(height: 8),
-						_Tiers(onSelect: _saveSubscription),
+						_Tiers(onSelect: _saveSubscription, currencyCode: _currency),
 									Align(
 										alignment: Alignment.centerLeft,
 										child: TextButton.icon(
@@ -235,7 +271,7 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 													runSpacing: 8,
 													children: [
 														ElevatedButton.icon(
-															onPressed: _askWithReportContext,
+															onPressed: () => _requirePlus(_askWithReportContext),
 															icon: const Icon(Icons.question_answer),
 															label: const Text('Ask with report context'),
 														),
@@ -249,7 +285,7 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 													],
 												),
 						Container(
-							decoration: BoxDecoration(color: Colors.teal.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(12)),
+							decoration: BoxDecoration(color: Colors.teal.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
 							padding: const EdgeInsets.all(8),
 							child: Column(
 								children: [
@@ -261,7 +297,7 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 											itemBuilder: (context, i) {
 												final m = _msgs[_msgs.length - 1 - i];
 												final align = m.isUser ? Alignment.centerRight : Alignment.centerLeft;
-												final bg = m.isUser ? Colors.green.withValues(alpha: 0.18) : Colors.teal.withValues(alpha: 0.10);
+												final bg = m.isUser ? Colors.green.withOpacity(0.18) : Colors.teal.withOpacity(0.10);
 												return Align(
 													alignment: align,
 													child: Container(
@@ -392,7 +428,8 @@ Widget _benefitTile(IconData icon, String title, String subtitle) {
 
 class _Tiers extends StatelessWidget {
 	final void Function(String tier) onSelect;
-	const _Tiers({required this.onSelect});
+	final String currencyCode;
+	const _Tiers({required this.onSelect, required this.currencyCode});
 
 	@override
 	Widget build(BuildContext context) {
@@ -406,7 +443,9 @@ class _Tiers extends StatelessWidget {
 	}
 
 	Widget _tierTile(String name, String desc, double price, void Function(String) onSelect) {
-		final priceStr = price == 0 ? 'Free' : '\u{1F4B2} ${price.toStringAsFixed(2)}/mo';
+		final priceStr = price == 0
+			? 'Free'
+			: '${CurrencyService.format(price, currencyCode)}/mo';
 		return Card(
 			child: ListTile(
 				leading: const Icon(Icons.star, color: Colors.amber),

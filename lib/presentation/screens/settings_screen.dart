@@ -3,6 +3,8 @@ import 'package:commontable_ai_app/core/services/app_settings.dart';
 import 'package:commontable_ai_app/core/services/auth_service.dart';
 import 'package:commontable_ai_app/routes/app_route.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
+import 'package:commontable_ai_app/core/services/theme_settings.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,16 +15,23 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   InsightsProvider _provider = InsightsProvider.simulated;
+  bool _hideReminder = false;
 
   @override
   void initState() {
     super.initState();
     _loadProvider();
+    _loadReminder();
   }
 
   Future<void> _loadProvider() async {
     final setting = await AppSettings().getInsightsProvider();
     if (mounted) setState(() => _provider = setting);
+  }
+
+  Future<void> _loadReminder() async {
+    final hidden = await AppSettings().getHideSignInReminder();
+    if (mounted) setState(() => _hideReminder = hidden);
   }
 
   @override
@@ -44,7 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (!isSignedIn) _buildSignInReminder(context),
+            if (!isSignedIn && !_hideReminder) _buildSignInReminder(context),
             const SizedBox(height: 20),
             _buildSettingsSection(
               title: 'Profile',
@@ -65,9 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.notifications,
                   title: 'Notifications',
                   subtitle: 'Manage app notifications',
-                  onTap: () {
-                    // TODO: Navigate to notifications settings
-                  },
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
                 ),
               ],
             ),
@@ -95,17 +102,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.palette,
                   title: 'Theme',
                   subtitle: 'Customize app appearance',
-                  onTap: () {
-                    // TODO: Navigate to theme settings
-                  },
+                  onTap: _chooseTheme,
                 ),
                 _buildSettingsTile(
                   icon: Icons.language,
                   title: 'Language',
                   subtitle: 'Change app language',
-                  onTap: () {
-                    // TODO: Navigate to language settings
-                  },
+                  onTap: _chooseLanguage,
+                ),
+                _buildSettingsTile(
+                  icon: Icons.monetization_on_outlined,
+                  title: 'Currency',
+                  subtitle: 'KES, USD, EUR',
+                  onTap: _chooseCurrency,
                 ),
               ],
             ),
@@ -135,17 +144,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.help_outline,
                   title: 'Help & FAQ',
                   subtitle: 'Get help and support',
-                  onTap: () {
-                    // TODO: Navigate to help
-                  },
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.helpFaq),
                 ),
                 _buildSettingsTile(
                   icon: Icons.feedback,
                   title: 'Send Feedback',
                   subtitle: 'Share your thoughts',
-                  onTap: () {
-                    // TODO: Navigate to feedback
-                  },
+                  onTap: _sendFeedback,
                 ),
               ],
             ),
@@ -231,6 +236,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _chooseTheme() async {
+    final mode = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(title: const Text('System'), onTap: () => Navigator.pop(context, 'system')),
+              ListTile(title: const Text('Light'), onTap: () => Navigator.pop(context, 'light')),
+              ListTile(title: const Text('Dark'), onTap: () => Navigator.pop(context, 'dark')),
+            ],
+          ),
+        );
+      },
+    );
+    if (mode == null) return;
+    final settings = ThemeSettings();
+    await settings.setMode(switch (mode) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Theme set to $mode')));
+  }
+
+  Future<void> _chooseLanguage() async {
+    final code = await showModalBottomSheet<String?>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12.0),
+                child: Text('Select Language', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              ListTile(title: const Text('System Default'), onTap: () => Navigator.pop(context, null)),
+              ListTile(title: const Text('English'), onTap: () => Navigator.pop(context, 'en')),
+              ListTile(title: const Text('French'), onTap: () => Navigator.pop(context, 'fr')),
+              ListTile(title: const Text('Swahili'), onTap: () => Navigator.pop(context, 'sw')),
+            ],
+          ),
+        );
+      },
+    );
+    final settings = ThemeSettings();
+    await settings.setLocale(code);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Language set${code == null ? '' : ' to $code'}')));
+  }
+
+  Future<void> _chooseCurrency() async {
+    final code = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(12.0),
+                child: Text('Select Currency', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              ListTile(title: const Text('Kenyan Shilling (KSh)'), onTap: () => Navigator.pop(context, 'kes')),
+              ListTile(title: const Text('US Dollar (\$)'), onTap: () => Navigator.pop(context, 'usd')),
+              ListTile(title: const Text('Euro (€)'), onTap: () => Navigator.pop(context, 'eur')),
+            ],
+          ),
+        );
+      },
+    );
+    if (code == null) return;
+    await AppSettings().setCurrencyCode(code);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Currency set to ${code.toUpperCase()}')));
+  }
+
+  Future<void> _sendFeedback() async {
+    final uri = Uri.parse('mailto:support@commontable.ai?subject=Commontable%20AI%20Feedback');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to open email client')));
+    }
+  }
+
   Widget _buildSettingsSection({
     required String title,
     required List<Widget> children,
@@ -285,10 +389,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
-                Icon(Icons.cloud_sync_outlined, color: Colors.blueGrey),
-                SizedBox(width: 8),
-                Text('Sign in to sync & back up', style: TextStyle(fontWeight: FontWeight.w700)),
+              children: [
+                const Icon(Icons.cloud_sync_outlined, color: Colors.blueGrey),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('Sign in to sync & back up', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+                IconButton(
+                  tooltip: 'Dismiss',
+                  icon: const Icon(Icons.close),
+                  onPressed: () async {
+                    await AppSettings().setHideSignInReminder(true);
+                    if (!mounted) return;
+                    setState(() => _hideReminder = true);
+                  },
+                )
               ],
             ),
             const SizedBox(height: 8),

@@ -474,7 +474,7 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
               child: LinearProgressIndicator(
                 value: pct,
                 minHeight: 14,
-                backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                backgroundColor: Colors.grey.withOpacity(0.2),
                 color: pct >= 0.7
                     ? Colors.green
                     : pct >= 0.5
@@ -696,12 +696,27 @@ class _MealTile extends StatelessWidget {
         const SizedBox(height: 4),
         ...meal.items.map(
           (i) => Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Text(i.name)),
-              Text(
-                '${i.calories} kcal',
-                style: const TextStyle(color: Colors.black54),
+              Expanded(
+                child: Text(
+                  i.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 64),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '${i.calories} kcal',
+                    softWrap: false,
+                    overflow: TextOverflow.fade,
+                    style: const TextStyle(color: Colors.black54),
+                  ),
+                ),
               ),
             ],
           ),
@@ -710,7 +725,10 @@ class _MealTile extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: Text(
             'Total: ${meal.totalCalories} kcal · P ${meal.totalProtein} · C ${meal.totalCarbs} · F ${meal.totalFats}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 12, color: Colors.black54),
+            textAlign: TextAlign.right,
           ),
         ),
         const Divider(height: 16),

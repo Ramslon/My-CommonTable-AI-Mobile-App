@@ -17,6 +17,8 @@ import 'package:commontable_ai_app/presentation/screens/community_feed_screen.da
 import 'package:commontable_ai_app/presentation/screens/ai_bias_fairness_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/profile_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/offline_accessibility_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/notifications_settings_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/help_faq_screen.dart';
 
 class AppRoutes {
   static const String onboarding = '/onboarding';
@@ -36,6 +38,8 @@ class AppRoutes {
   static const String aiBiasFairness = '/ai-bias-fairness';
   static const String profile = '/profile';
   static const String offlineAccessibility = '/offline-accessibility';
+  static const String notifications = '/notifications';
+  static const String helpFaq = '/help-faq';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -77,6 +81,10 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const AIBiasFairnessScreen());
       case offlineAccessibility:
         return MaterialPageRoute(builder: (_) => const OfflineAccessibilityScreen());
+      case notifications:
+        return MaterialPageRoute(builder: (_) => const NotificationsSettingsScreen());
+      case helpFaq:
+        return MaterialPageRoute(builder: (_) => const HelpFaqScreen());
       case AppRoutes.settings:
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
       case profile:

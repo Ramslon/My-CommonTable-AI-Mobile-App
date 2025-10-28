@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:commontable_ai_app/core/services/payments_service.dart';
+import 'package:commontable_ai_app/core/services/app_settings.dart';
+import 'package:commontable_ai_app/core/services/currency_service.dart';
 
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key});
@@ -16,6 +18,7 @@ class _BillingScreenState extends State<BillingScreen> {
   List<ProductDetails> _products = [];
   bool _loading = true;
   String? _currentTier;
+  String _currency = 'usd';
 
   @override
   void initState() {
@@ -24,6 +27,7 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   Future<void> _init() async {
+    _currency = await AppSettings().getCurrencyCode();
     await _loadCurrentTier();
     final provider = await _payments.init();
     if (provider == BillingProvider.inAppPurchase) {
@@ -82,8 +86,8 @@ class _BillingScreenState extends State<BillingScreen> {
                       ))
                 else ...[
                   _planTile(name: 'Basic', price: 'Free', onSubscribe: () => _subscribeSimulated('basic')),
-                  _planTile(name: 'Plus', price: '4B2 4.99/mo (test)', onSubscribe: () => _subscribeSimulated('plus')),
-                  _planTile(name: 'Premium', price: '4B2 14.99/mo (test)', onSubscribe: () => _subscribeSimulated('premium')),
+                    _planTile(name: 'Plus', price: '${CurrencyService.format(4.99, _currency)}/mo (test)', onSubscribe: () => _subscribeSimulated('plus')),
+                    _planTile(name: 'Premium', price: '${CurrencyService.format(14.99, _currency)}/mo (test)', onSubscribe: () => _subscribeSimulated('premium')),
                   Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text('Note: Real in-app products not configured. Using test flow.', style: TextStyle(color: Colors.black54)),

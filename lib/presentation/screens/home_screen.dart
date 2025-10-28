@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:commontable_ai_app/routes/app_route.dart';
+import 'package:commontable_ai_app/core/services/auth_service.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -135,18 +136,32 @@ class _WelcomeHeader extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            'Welcome Back 👋',
-            style: TextStyle(color: Colors.white, fontSize: 20),
-          ),
-          SizedBox(height: 8),
-          Text(
+        children: [
+          _WelcomeTitle(),
+          const SizedBox(height: 8),
+          const Text(
             'Your AI nutrition companion is ready to help you make smarter food choices today!',
             style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _WelcomeTitle extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Pull a friendly name; falls back to generic greeting.
+    final name = AuthService().currentDisplayName;
+    final text = name != null && name.isNotEmpty
+        ? 'Welcome back, $name 👋'
+        : 'Welcome Back 👋';
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(color: Colors.white, fontSize: 20),
     );
   }
 }
@@ -181,7 +196,7 @@ class _FeatureCardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: feature.color.withValues(alpha: 0.3),
+            color: feature.color.withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),

@@ -91,4 +91,18 @@ class AuthService {
     final cred = await _auth.signInAnonymously();
     return cred.user!;
   }
+
+  /// Returns a user-friendly display name. Falls back to email username.
+  String? get currentDisplayName {
+    if (!_isAvailable()) return null;
+    final u = _auth.currentUser;
+    if (u == null) return null;
+    final name = u.displayName;
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+    final email = u.email;
+    if (email != null && email.contains('@')) {
+      return email.split('@').first;
+    }
+    return null;
+  }
 }

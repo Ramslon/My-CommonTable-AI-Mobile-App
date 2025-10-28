@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 /// Service to generate nutrition insights.
@@ -11,11 +12,28 @@ import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 enum InsightsProvider { simulated, gemini, huggingFace }
 
 class NutritionInsightsService {
-  // Configure via --dart-define at build/run time
-  static const _geminiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const _geminiModel = String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-1.5-flash');
-  static const _hfKey = String.fromEnvironment('HF_API_KEY');
-  static const _hfModel = String.fromEnvironment('HF_MODEL', defaultValue: 'Qwen/Qwen2.5-3B-Instruct');
+  // Load from .env first; fallback to --dart-define
+  static String _env(String name, {String def = ''}) {
+    final v = dotenv.maybeGet(name);
+    if (v != null && v.isNotEmpty) return v;
+    switch (name) {
+      case 'GEMINI_API_KEY':
+        return const String.fromEnvironment('GEMINI_API_KEY');
+      case 'GEMINI_MODEL':
+        return const String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-1.5-flash');
+      case 'HF_API_KEY':
+        return const String.fromEnvironment('HF_API_KEY');
+      case 'HF_MODEL':
+        return const String.fromEnvironment('HF_MODEL', defaultValue: 'Qwen/Qwen2.5-3B-Instruct');
+      default:
+        return def;
+    }
+  }
+
+  static String get _geminiKey => _env('GEMINI_API_KEY');
+  static String get _geminiModel => _env('GEMINI_MODEL', def: 'gemini-1.5-flash');
+  static String get _hfKey => _env('HF_API_KEY');
+  static String get _hfModel => _env('HF_MODEL', def: 'Qwen/Qwen2.5-3B-Instruct');
 
   InsightsProvider get _autoProvider =>
       _geminiKey.isNotEmpty ? InsightsProvider.gemini : _hfKey.isNotEmpty ? InsightsProvider.huggingFace : InsightsProvider.simulated;

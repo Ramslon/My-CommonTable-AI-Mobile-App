@@ -1,15 +1,41 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 /// Lightweight chat coach service supporting simulated, Gemini, OpenAI and HF.
 class ChatCoachService {
-  static const _geminiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const _geminiModel = String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-1.5-flash');
-  static const _openaiKey = String.fromEnvironment('OPENAI_API_KEY');
-  static const _openaiModel = String.fromEnvironment('OPENAI_MODEL', defaultValue: 'gpt-4o-mini');
-  static const _hfKey = String.fromEnvironment('HF_API_KEY');
-  static const _hfModel = String.fromEnvironment('HF_MODEL', defaultValue: 'Qwen/Qwen2.5-3B-Instruct');
+  // Read from .env first, then from --dart-define fallback
+  static String _env(String name, {String def = ''}) {
+    final v = dotenv.maybeGet(name);
+    if (v != null && v.isNotEmpty) return v;
+    const empty = '';
+    switch (name) {
+      case 'GEMINI_API_KEY':
+        return const String.fromEnvironment('GEMINI_API_KEY');
+      case 'GEMINI_MODEL':
+        return const String.fromEnvironment('GEMINI_MODEL', defaultValue: 'gemini-1.5-flash');
+      case 'OPENAI_API_KEY':
+        return const String.fromEnvironment('OPENAI_API_KEY');
+      case 'OPENAI_KEY':
+        return const String.fromEnvironment('OPENAI_KEY');
+      case 'OPENAI_MODEL':
+        return const String.fromEnvironment('OPENAI_MODEL', defaultValue: 'gpt-4o-mini');
+      case 'HF_API_KEY':
+        return const String.fromEnvironment('HF_API_KEY');
+      case 'HF_MODEL':
+        return const String.fromEnvironment('HF_MODEL', defaultValue: 'Qwen/Qwen2.5-3B-Instruct');
+      default:
+        return def.isNotEmpty ? def : empty;
+    }
+  }
+
+  static String get _geminiKey => _env('GEMINI_API_KEY');
+  static String get _geminiModel => _env('GEMINI_MODEL', def: 'gemini-1.5-flash');
+  static String get _openaiKey => _env('OPENAI_API_KEY').isNotEmpty ? _env('OPENAI_API_KEY') : _env('OPENAI_KEY');
+  static String get _openaiModel => _env('OPENAI_MODEL', def: 'gpt-4o-mini');
+  static String get _hfKey => _env('HF_API_KEY');
+  static String get _hfModel => _env('HF_MODEL', def: 'Qwen/Qwen2.5-3B-Instruct');
 
   ChatProvider get autoProvider {
     if (_geminiKey.isNotEmpty) return ChatProvider.gemini;
@@ -98,7 +124,7 @@ class ChatCoachService {
   }
 
   Future<String> _callOpenAI(List<ChatTurn> history) async {
-    if (_openaiKey.isEmpty) throw Exception('Missing OPENAI_API_KEY');
+  if (_openaiKey.isEmpty) throw Exception('Missing OPENAI_API_KEY (or OPENAI_KEY)');
     final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
     final messages = history
         .map((h) => {
