@@ -27,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSignedIn = AuthService().isSignedIn;
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -43,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (!isSignedIn) _buildSignInReminder(context),
             const SizedBox(height: 20),
             _buildSettingsSection(
               title: 'Profile',
@@ -270,6 +272,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildSignInReminder(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.cloud_sync_outlined, color: Colors.blueGrey),
+                SizedBox(width: 8),
+                Text('Sign in to sync & back up', style: TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Create a free account to save your progress, meal plans, and settings across devices.',
+              style: TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.auth),
+                icon: const Icon(Icons.login),
+                label: const Text('Sign in'),
+              ),
+            )
+          ],
+        ),
+      ),
     );
   }
 }
