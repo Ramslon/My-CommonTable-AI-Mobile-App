@@ -15,6 +15,7 @@ import 'package:commontable_ai_app/presentation/screens/billing_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/privacy_settings_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/community_feed_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/ai_bias_fairness_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/profile_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/offline_accessibility_screen.dart';
 
 class AppRoutes {
@@ -33,6 +34,7 @@ class AppRoutes {
   static const String privacySettings = '/privacy-settings';
   static const String socialCommunity = '/community';
   static const String aiBiasFairness = '/ai-bias-fairness';
+  static const String profile = '/profile';
   static const String offlineAccessibility = '/offline-accessibility';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -77,6 +79,8 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const OfflineAccessibilityScreen());
       case AppRoutes.settings:
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
+      case profile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
       default:
         return MaterialPageRoute(
           builder: (_) =>

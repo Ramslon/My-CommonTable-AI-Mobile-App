@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
+import 'package:commontable_ai_app/core/services/auth_service.dart';
 import 'package:commontable_ai_app/routes/app_route.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 
@@ -50,9 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.person,
                   title: 'Account Information',
                   subtitle: 'Manage your profile details',
-                  onTap: () {
-                    // TODO: Navigate to account info
-                  },
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
                 ),
                 _buildSettingsTile(
                   icon: Icons.lock_outline,
@@ -112,6 +111,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingsSection(
               title: 'Support',
               children: [
+                _buildSettingsTile(
+                  icon: Icons.logout,
+                  title: 'Sign out',
+                  subtitle: 'Sign out of your account',
+                  onTap: () async {
+                    try {
+                      await AuthService().signOut();
+                    } catch (_) {}
+                    if (!mounted) return;
+                    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.auth, (r) => false);
+                  },
+                ),
                 _buildSettingsTile(
                   icon: Icons.balance_outlined,
                   title: 'AI Bias & Fairness',

@@ -41,5 +41,9 @@ class AuthService {
     await _auth.signOut();
   }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
   bool get isSignedIn => _auth.currentUser != null && !(_auth.currentUser?.isAnonymous ?? false);
 }

@@ -101,6 +101,25 @@ class _LoginFormState extends State<LoginForm> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter your email to reset password')));
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await AuthService().sendPasswordResetEmail(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset email sent')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reset failed: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -131,6 +150,14 @@ class _LoginFormState extends State<LoginForm> {
             onPressed: _loading ? null : _loginGoogle,
             icon: const Icon(Icons.login),
             label: const Text('Sign in with Google'),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _loading ? null : _forgotPassword,
+              child: const Text('Forgot password?'),
+            ),
           ),
           const SizedBox(height: 12),
           TextButton(
