@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "901663392605",
+    "project_id": "commonai-app",
+    "storage_bucket": "commonai-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:901663392605:android:b13732a9759d28338fdeb4",
+        "android_client_info": {
+          "package_name": "com.example.commontable_ai_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjDWF69UZaC9lCNUymh93reiGjJwCwBcQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

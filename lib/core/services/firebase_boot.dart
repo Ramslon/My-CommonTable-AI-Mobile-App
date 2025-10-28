@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:commontable_ai_app/firebase_options.dart';
 
 /// Initializes Firebase safely and exposes availability.
 ///
@@ -10,7 +11,9 @@ class FirebaseBoot {
 
   static Future<void> init() async {
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
       available = true;
     } catch (_) {
       available = false;
