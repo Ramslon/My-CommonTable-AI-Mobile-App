@@ -48,9 +48,32 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               tabs: const [Tab(text: 'Login'), Tab(text: 'Register')],
             ),
           ),
-          body: TabBarView(
-            controller: _tabController,
-            children: const [LoginForm(), RegisterForm()],
+          body: Column(
+            children: [
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: const [LoginForm(), RegisterForm()],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      try {
+                        await AuthService().ensureAnonymous();
+                      } catch (_) {}
+                      if (!context.mounted) return;
+                      Navigator.pushReplacementNamed(context, AppRoutes.home);
+                    },
+                    child: const Text('Skip for now'),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },

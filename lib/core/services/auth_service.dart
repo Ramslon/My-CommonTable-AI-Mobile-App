@@ -46,4 +46,12 @@ class AuthService {
   }
 
   bool get isSignedIn => _auth.currentUser != null && !(_auth.currentUser?.isAnonymous ?? false);
+
+  /// Ensure an anonymous session exists (or reuse current user).
+  Future<User> ensureAnonymous() async {
+    final cur = _auth.currentUser;
+    if (cur != null) return cur;
+    final cred = await _auth.signInAnonymously();
+    return cred.user!;
+  }
 }
