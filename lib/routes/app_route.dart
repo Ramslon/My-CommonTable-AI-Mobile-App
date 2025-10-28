@@ -7,6 +7,7 @@ import 'package:commontable_ai_app/presentation/screens/settings_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/nutrition_analysis_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/real_chatbot_screen.dart'
     as chat;
+import 'package:commontable_ai_app/presentation/screens/auth_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/student_features_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/low_income_features_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/premium_features_screen.dart';
@@ -19,6 +20,7 @@ import 'package:commontable_ai_app/presentation/screens/offline_accessibility_sc
 class AppRoutes {
   static const String onboarding = '/onboarding';
   static const String home = '/home';
+  static const String auth = '/auth';
   static const String chatbot = '/chatbot';
   static const String nutritionAnalysis = '/nutrition-analysis';
   static const String mealPlans = '/meal-plans';
@@ -37,6 +39,8 @@ class AppRoutes {
     switch (settings.name) {
       case onboarding:
         return MaterialPageRoute(builder: (_) => const OnboardingScreen());
+      case auth:
+        return MaterialPageRoute(builder: (_) => const AuthScreen());
       case home:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
       case chatbot:

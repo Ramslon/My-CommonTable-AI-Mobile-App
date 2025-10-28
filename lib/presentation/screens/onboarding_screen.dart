@@ -41,7 +41,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _nextPage() {
     if (_currentPage == _pages.length - 1) {
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
+      Navigator.pushReplacementNamed(context, AppRoutes.auth);
     } else {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
