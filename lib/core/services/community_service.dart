@@ -17,11 +17,12 @@ class CommunityService {
         CommunityPost(
           id: 'local1',
           userId: 'demo',
-          content: 'Welcome to the community! Share your healthy lunch ideas 🥗',
+          content:
+              'Welcome to the community! Share your healthy lunch ideas 🥗',
           createdAt: DateTime.now(),
           likesCount: 3,
           commentsCount: 1,
-          tags: const ['welcome', 'healthy']
+          tags: const ['welcome', 'healthy'],
         ),
       ];
       return Stream<List<CommunityPost>>.value(demo);
@@ -34,7 +35,11 @@ class CommunityService {
         .map((snap) => snap.docs.map((d) => CommunityPost.fromDoc(d)).toList());
   }
 
-  Future<void> createPost(String content, {String? imageUrl, List<String> tags = const []}) async {
+  Future<void> createPost(
+    String content, {
+    String? imageUrl,
+    List<String> tags = const [],
+  }) async {
     if (!FirebaseBoot.available) return; // no-op in local-only mode
     final uid = _uid;
     await _fs.collection('posts').add({
@@ -47,20 +52,30 @@ class CommunityService {
       'tags': tags,
     });
     if (uid != null) {
-      await _fs.collection('profiles').doc(uid).set({'posts': FieldValue.increment(1)}, SetOptions(merge: true));
+      await _fs.collection('profiles').doc(uid).set({
+        'posts': FieldValue.increment(1),
+      }, SetOptions(merge: true));
     }
   }
 
   Future<void> likePost(String postId) async {
     if (!FirebaseBoot.available) return;
     final uid = _uid;
-    final likeRef = _fs.collection('posts').doc(postId).collection('likes').doc(uid ?? 'anon');
+    final likeRef = _fs
+        .collection('posts')
+        .doc(postId)
+        .collection('likes')
+        .doc(uid ?? 'anon');
     final likeDoc = await likeRef.get();
     if (!likeDoc.exists) {
       await likeRef.set({'createdAt': DateTime.now().toIso8601String()});
-      await _fs.collection('posts').doc(postId).update({'likesCount': FieldValue.increment(1)});
+      await _fs.collection('posts').doc(postId).update({
+        'likesCount': FieldValue.increment(1),
+      });
       if (uid != null) {
-        await _fs.collection('profiles').doc(uid).set({'likesGiven': FieldValue.increment(1)}, SetOptions(merge: true));
+        await _fs.collection('profiles').doc(uid).set({
+          'likesGiven': FieldValue.increment(1),
+        }, SetOptions(merge: true));
       }
     }
   }
@@ -69,7 +84,11 @@ class CommunityService {
     if (!FirebaseBoot.available) {
       final demo = [
         CommunityComment(
-          id: 'c1', postId: postId, userId: 'demo', text: 'Great idea!', createdAt: DateTime.now(),
+          id: 'c1',
+          postId: postId,
+          userId: 'demo',
+          text: 'Great idea!',
+          createdAt: DateTime.now(),
         ),
       ];
       return Stream.value(demo);
@@ -81,7 +100,9 @@ class CommunityService {
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => CommunityComment.fromDoc(d)).toList());
+        .map(
+          (snap) => snap.docs.map((d) => CommunityComment.fromDoc(d)).toList(),
+        );
   }
 
   Future<void> addComment(String postId, String text) async {
@@ -94,7 +115,9 @@ class CommunityService {
       'text': text,
       'createdAt': DateTime.now().toIso8601String(),
     });
-    await _fs.collection('posts').doc(postId).update({'commentsCount': FieldValue.increment(1)});
+    await _fs.collection('posts').doc(postId).update({
+      'commentsCount': FieldValue.increment(1),
+    });
   }
 
   Stream<List<GroupChallenge>> streamChallenges() {
@@ -108,7 +131,7 @@ class CommunityService {
           startDate: now,
           endDate: now.add(const Duration(days: 7)),
           participants: 24,
-        )
+        ),
       ];
       return Stream.value(demo);
     }
@@ -117,26 +140,38 @@ class CommunityService {
         .orderBy('startDate', descending: true)
         .limit(20)
         .snapshots()
-        .map((snap) => snap.docs.map((d) => GroupChallenge.fromDoc(d)).toList());
+        .map(
+          (snap) => snap.docs.map((d) => GroupChallenge.fromDoc(d)).toList(),
+        );
   }
 
   Future<void> joinChallenge(String challengeId) async {
     if (!FirebaseBoot.available) return;
     final uid = _uid ?? 'anon';
-    final ref = _fs.collection('challenges').doc(challengeId).collection('participants').doc(uid);
+    final ref = _fs
+        .collection('challenges')
+        .doc(challengeId)
+        .collection('participants')
+        .doc(uid);
     final doc = await ref.get();
     if (!doc.exists) {
       await ref.set({'joinedAt': DateTime.now().toIso8601String()});
-      await _fs.collection('challenges').doc(challengeId).update({'participants': FieldValue.increment(1)});
+      await _fs.collection('challenges').doc(challengeId).update({
+        'participants': FieldValue.increment(1),
+      });
       if (_uid != null) {
-        await _fs.collection('profiles').doc(_uid).set({'challengesJoined': FieldValue.increment(1)}, SetOptions(merge: true));
+        await _fs.collection('profiles').doc(_uid).set({
+          'challengesJoined': FieldValue.increment(1),
+        }, SetOptions(merge: true));
       }
     }
   }
 
   Stream<UserProfile> streamMyProfile() {
     if (!FirebaseBoot.available || _uid == null) {
-      return Stream.value(UserProfile(userId: _uid ?? 'anon', displayName: 'Guest'));
+      return Stream.value(
+        UserProfile(userId: _uid ?? 'anon', displayName: 'Guest'),
+      );
     }
     return _fs.collection('profiles').doc(_uid).snapshots().map((d) {
       if (!d.exists) return UserProfile(userId: _uid!, displayName: 'User');
@@ -144,19 +179,33 @@ class CommunityService {
     });
   }
 
-  Future<void> updateProfile({String? displayName, String? bio, String? photoUrl}) async {
+  Future<void> updateProfile({
+    String? displayName,
+    String? bio,
+    String? photoUrl,
+  }) async {
     if (!FirebaseBoot.available || _uid == null) return;
     final data = <String, dynamic>{};
     if (displayName != null) data['displayName'] = displayName;
     if (bio != null) data['bio'] = bio;
     if (photoUrl != null) data['photoUrl'] = photoUrl;
     if (data.isEmpty) return;
-    await _fs.collection('profiles').doc(_uid).set(data, SetOptions(merge: true));
+    await _fs
+        .collection('profiles')
+        .doc(_uid)
+        .set(data, SetOptions(merge: true));
   }
 
   Stream<List<UserProfile>> streamLeaderboard({int limit = 20}) {
     if (!FirebaseBoot.available) {
-      final demo = [UserProfile(userId: 'u1', displayName: 'Top Member', challengesJoined: 5, badges: const ['Starter'] )];
+      final demo = [
+        UserProfile(
+          userId: 'u1',
+          displayName: 'Top Member',
+          challengesJoined: 5,
+          badges: const ['Starter'],
+        ),
+      ];
       return Stream.value(demo);
     }
     return _fs

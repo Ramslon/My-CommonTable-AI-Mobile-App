@@ -85,6 +85,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _chooseProvider,
                 ),
                 _buildSettingsTile(
+                  icon: Icons.offline_bolt,
+                  title: 'Offline & Accessibility',
+                  subtitle: 'Download data, text size, voice logging',
+                  onTap: () => Navigator.pushNamed(context, AppRoutes.offlineAccessibility),
+                ),
+                _buildSettingsTile(
                   icon: Icons.palette,
                   title: 'Theme',
                   subtitle: 'Customize app appearance',

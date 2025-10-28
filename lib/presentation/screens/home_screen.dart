@@ -121,7 +121,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-
 // 🟢 WELCOME HEADER
 class _WelcomeHeader extends StatelessWidget {
   const _WelcomeHeader();

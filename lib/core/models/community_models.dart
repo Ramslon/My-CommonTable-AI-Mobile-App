@@ -36,14 +36,14 @@ class CommunityPost {
   }
 
   Map<String, dynamic> toMap() => {
-        'userId': userId,
-        'content': content,
-        if (imageUrl != null) 'imageUrl': imageUrl,
-        'createdAt': createdAt.toIso8601String(),
-        'likesCount': likesCount,
-        'commentsCount': commentsCount,
-        'tags': tags,
-      };
+    'userId': userId,
+    'content': content,
+    if (imageUrl != null) 'imageUrl': imageUrl,
+    'createdAt': createdAt.toIso8601String(),
+    'likesCount': likesCount,
+    'commentsCount': commentsCount,
+    'tags': tags,
+  };
 }
 
 class CommunityComment {
@@ -73,11 +73,11 @@ class CommunityComment {
   }
 
   Map<String, dynamic> toMap() => {
-        'postId': postId,
-        'userId': userId,
-        'text': text,
-        'createdAt': createdAt.toIso8601String(),
-      };
+    'postId': postId,
+    'userId': userId,
+    'text': text,
+    'createdAt': createdAt.toIso8601String(),
+  };
 }
 
 class UserProfile {
@@ -119,15 +119,15 @@ class UserProfile {
   }
 
   Map<String, dynamic> toMap() => {
-        if (displayName != null) 'displayName': displayName,
-        if (photoUrl != null) 'photoUrl': photoUrl,
-        if (bio != null) 'bio': bio,
-        'posts': posts,
-        'likesGiven': likesGiven,
-        'challengesJoined': challengesJoined,
-        'streakDays': streakDays,
-        'badges': badges,
-      };
+    if (displayName != null) 'displayName': displayName,
+    if (photoUrl != null) 'photoUrl': photoUrl,
+    if (bio != null) 'bio': bio,
+    'posts': posts,
+    'likesGiven': likesGiven,
+    'challengesJoined': challengesJoined,
+    'streakDays': streakDays,
+    'badges': badges,
+  };
 }
 
 class GroupChallenge {
@@ -154,16 +154,18 @@ class GroupChallenge {
       title: d['title'] ?? '',
       description: d['description'] ?? '',
       startDate: DateTime.tryParse(d['startDate'] ?? '') ?? DateTime.now(),
-      endDate: DateTime.tryParse(d['endDate'] ?? '') ?? DateTime.now().add(const Duration(days: 7)),
+      endDate:
+          DateTime.tryParse(d['endDate'] ?? '') ??
+          DateTime.now().add(const Duration(days: 7)),
       participants: (d['participants'] as num?)?.toInt() ?? 0,
     );
   }
 
   Map<String, dynamic> toMap() => {
-        'title': title,
-        'description': description,
-        'startDate': startDate.toIso8601String(),
-        'endDate': endDate.toIso8601String(),
-        'participants': participants,
-      };
+    'title': title,
+    'description': description,
+    'startDate': startDate.toIso8601String(),
+    'endDate': endDate.toIso8601String(),
+    'participants': participants,
+  };
 }

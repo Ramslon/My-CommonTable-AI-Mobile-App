@@ -12,7 +12,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class NotificationsService {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static final _fm = FirebaseMessaging.instance;
-  static final StreamController<RemoteMessage> _messages = StreamController.broadcast();
+  static final StreamController<RemoteMessage> _messages =
+      StreamController.broadcast();
   static Stream<RemoteMessage> get messages => _messages.stream;
 
   static Future<void> init() async {
@@ -28,9 +29,10 @@ class NotificationsService {
       description: 'General notifications',
       importance: Importance.high,
     );
-    final androidPlugin =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await androidPlugin?.createNotificationChannel(channel);
 
     // Request FCM permission (Android 13+ & iOS)

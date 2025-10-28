@@ -6,6 +6,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:commontable_ai_app/core/models/meal_plan.dart';
 import 'package:commontable_ai_app/core/services/ai_meal_plan_service.dart';
 import 'package:commontable_ai_app/core/services/diet_assessment_service.dart';
+import 'package:commontable_ai_app/core/services/offline_cache_service.dart';
+import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 import 'package:commontable_ai_app/routes/app_route.dart';
 
 class NutritionPlanScreen extends StatefulWidget {
@@ -44,6 +46,7 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
     );
     _resolveUser();
     _loadHistory();
+    _loadOfflinePlanIfAny();
   }
 
   @override
@@ -51,6 +54,17 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
     _calorieCtrl.dispose();
     _dietTextCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadOfflinePlanIfAny() async {
+    try {
+      final p = await PrivacySettingsService().load();
+      if (!p.offlineMode) return;
+      final cached = await OfflineCacheService().getMealPlan();
+      if (cached != null && mounted) {
+        setState(() => _plan = cached);
+      }
+    } catch (_) {}
   }
 
   int _goalToCalories(String g) {

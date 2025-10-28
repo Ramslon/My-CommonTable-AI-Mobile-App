@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
+import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 class DietAssessmentService {
   static const _calorieNinjasKey = String.fromEnvironment('CALORIE_NINJAS_KEY');
@@ -46,7 +47,8 @@ class DietAssessmentService {
     }
 
     Map<String, double>? apiTotals;
-    if (_calorieNinjasKey.isNotEmpty) {
+    final privacy = await PrivacySettingsService().load();
+    if (!privacy.offlineMode && _calorieNinjasKey.isNotEmpty) {
       try {
         apiTotals = await _fetchCalorieNinjas(cleaned);
       } catch (_) {

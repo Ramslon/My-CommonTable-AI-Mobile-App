@@ -16,7 +16,8 @@ class CommunityFeedScreen extends StatefulWidget {
   State<CommunityFeedScreen> createState() => _CommunityFeedScreenState();
 }
 
-class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTickerProviderStateMixin {
+class _CommunityFeedScreenState extends State<CommunityFeedScreen>
+    with SingleTickerProviderStateMixin {
   final _svc = CommunityService();
   final _rec = CommunityRecommendationService();
   final _mod = ContentModerationService();
@@ -44,7 +45,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
     final ok = await _mod.isHealthyContent(text);
     if (!ok) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post flagged by moderation policy.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Post flagged by moderation policy.')),
+      );
       return;
     }
     String? imageUrl;
@@ -65,7 +68,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Community', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Community',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         backgroundColor: Colors.blueGrey,
         foregroundColor: Colors.white,
@@ -75,7 +81,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
             Tab(text: 'Feed', icon: Icon(Icons.forum_outlined)),
             Tab(text: 'Challenges', icon: Icon(Icons.flag_outlined)),
             Tab(text: 'Profile', icon: Icon(Icons.person_outline)),
-            Tab(text: 'Notifications', icon: Icon(Icons.notifications_outlined)),
+            Tab(
+              text: 'Notifications',
+              icon: Icon(Icons.notifications_outlined),
+            ),
           ],
         ),
       ),
@@ -103,7 +112,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                   controller: _postCtrl,
                   maxLines: 2,
                   decoration: InputDecoration(
-                    hintText: FirebaseBoot.available ? 'Share a healthy tip or recipe…' : 'Local mode: posting disabled',
+                    hintText: FirebaseBoot.available
+                        ? 'Share a healthy tip or recipe…'
+                        : 'Local mode: posting disabled',
                     border: const OutlineInputBorder(),
                   ),
                   enabled: FirebaseBoot.available,
@@ -115,7 +126,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                 onPressed: FirebaseBoot.available
                     ? () async {
                         final picker = ImagePicker();
-                        final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                        final x = await picker.pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 85,
+                        );
                         if (x != null) {
                           final bytes = await x.readAsBytes();
                           setState(() => _pendingImage = bytes);
@@ -128,7 +142,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                 onPressed: FirebaseBoot.available ? _submitPost : null,
                 icon: const Icon(Icons.send_outlined),
                 label: const Text('Post'),
-              )
+              ),
             ],
           ),
         ),
@@ -172,7 +186,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (_) => _CommentsSheet(post: p, svc: _svc),
     );
   }
@@ -183,7 +199,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
       builder: (context, snap) {
         final challenges = snap.data ?? [];
         if (challenges.isEmpty) {
-          return const Center(child: Text('No challenges yet. Check back soon!'));
+          return const Center(
+            child: Text('No challenges yet. Check back soon!'),
+          );
         }
         return ListView(
           padding: const EdgeInsets.all(12),
@@ -193,13 +211,18 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(c.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text(
+                          c.title,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                         const SizedBox(height: 6),
                         Text(c.description),
                         const SizedBox(height: 8),
@@ -210,11 +233,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                             Text('${c.participants} joined'),
                             const Spacer(),
                             ElevatedButton(
-                              onPressed: FirebaseBoot.available ? () => _svc.joinChallenge(c.id) : null,
+                              onPressed: FirebaseBoot.available
+                                  ? () => _svc.joinChallenge(c.id)
+                                  : null,
                               child: const Text('Join'),
                             ),
                           ],
-                        )
+                        ),
                       ],
                     ),
                   ),
@@ -222,7 +247,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
               );
             }),
             const SizedBox(height: 12),
-            const Text('Leaderboard', style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text(
+              'Leaderboard',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 6),
             StreamBuilder<List<UserProfile>>(
               stream: _svc.streamLeaderboard(),
@@ -235,14 +263,23 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
                     final u = e.value;
                     return ListTile(
                       leading: CircleAvatar(child: Text('$idx')),
-                      title: Text(u.displayName ?? u.userId, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text('Challenges: ${u.challengesJoined} • Streak: ${u.streakDays}d'),
-                      trailing: const Icon(Icons.emoji_events_outlined, color: Colors.amber),
+                      title: Text(
+                        u.displayName ?? u.userId,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        'Challenges: ${u.challengesJoined} • Streak: ${u.streakDays}d',
+                      ),
+                      trailing: const Icon(
+                        Icons.emoji_events_outlined,
+                        color: Colors.amber,
+                      ),
                     );
                   }).toList(),
                 );
               },
-            )
+            ),
           ],
         );
       },
@@ -253,7 +290,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
     return StreamBuilder<UserProfile>(
       stream: _svc.streamMyProfile(),
       builder: (context, snap) {
-        final p = snap.data ?? UserProfile(userId: FirebaseAuth.instance.currentUser?.uid ?? 'anon');
+        final p =
+            snap.data ??
+            UserProfile(
+              userId: FirebaseAuth.instance.currentUser?.uid ?? 'anon',
+            );
         return Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -261,19 +302,39 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
             children: [
               Row(
                 children: [
-                  CircleAvatar(radius: 24, backgroundImage: p.photoUrl != null ? NetworkImage(p.photoUrl!) : null, child: p.photoUrl == null ? const Icon(Icons.person) : null),
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundImage: p.photoUrl != null
+                        ? NetworkImage(p.photoUrl!)
+                        : null,
+                    child: p.photoUrl == null ? const Icon(Icons.person) : null,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(p.displayName ?? 'Member', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                        Text('ID: ${p.userId}', style: const TextStyle(color: Colors.black54, fontSize: 12)),
+                        Text(
+                          p.displayName ?? 'Member',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'ID: ${p.userId}',
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: FirebaseBoot.available ? () => _openEditProfile(p) : null,
+                    onPressed: FirebaseBoot.available
+                        ? () => _openEditProfile(p)
+                        : null,
                     icon: const Icon(Icons.edit_outlined),
                     label: const Text('Edit'),
                   ),
@@ -292,28 +353,52 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
               ),
               const SizedBox(height: 16),
               if (p.badges.isNotEmpty) ...[
-                const Text('Badges', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text(
+                  'Badges',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 6),
-                Wrap(spacing: 8, runSpacing: 8, children: p.badges.map((b) => Chip(label: Text(b))).toList()),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: p.badges.map((b) => Chip(label: Text(b))).toList(),
+                ),
                 const SizedBox(height: 16),
               ],
-              const Text('Recommendations', style: TextStyle(fontWeight: FontWeight.w700)),
+              const Text(
+                'Recommendations',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: 6),
               FutureBuilder<List<CommunityPost>>(
                 future: _rec.recommendForUser(p.userId, _latest),
                 builder: (context, snap) {
                   final recs = snap.data ?? [];
-                  if (recs.isEmpty) return const Text('Follow the feed to see personalized posts here.');
+                  if (recs.isEmpty)
+                    return const Text(
+                      'Follow the feed to see personalized posts here.',
+                    );
                   return Column(
-                    children: recs.take(3).map((r) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.recommend_outlined),
-                      title: Text(r.content, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text('${r.likesCount} likes • ${r.commentsCount} comments'),
-                    )).toList(),
+                    children: recs
+                        .take(3)
+                        .map(
+                          (r) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.recommend_outlined),
+                            title: Text(
+                              r.content,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${r.likesCount} likes • ${r.commentsCount} comments',
+                            ),
+                          ),
+                        )
+                        .toList(),
                   );
                 },
-              )
+              ),
             ],
           ),
         );
@@ -328,63 +413,97 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => StatefulBuilder(builder: (context, setSheet) {
-        return Padding(
-          padding: EdgeInsets.only(left: 16, right: 16, bottom: MediaQuery.of(context).viewInsets.bottom + 16, top: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(radius: 28, backgroundImage: avatarBytes != null ? MemoryImage(avatarBytes!) : (p.photoUrl != null ? NetworkImage(p.photoUrl!) : null) as ImageProvider<Object>?),
-                  const SizedBox(width: 12),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final picker = ImagePicker();
-                      final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-                      if (x != null) {
-                        final bytes = await x.readAsBytes();
-                        setSheet(() => avatarBytes = bytes);
-                      }
-                    },
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    label: const Text('Change avatar'),
-                  )
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Display name')),
-              const SizedBox(height: 8),
-              TextField(controller: bioCtrl, decoration: const InputDecoration(labelText: 'Bio'), maxLines: 3),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final nav = Navigator.of(context);
-                    String? photoUrl;
-                    if (avatarBytes != null) {
-                      try {
-                        photoUrl = await StorageService().uploadImageBytes(avatarBytes!, folder: 'avatars');
-                      } catch (_) {}
-                    }
-                    await _svc.updateProfile(
-                      displayName: nameCtrl.text.trim().isEmpty ? null : nameCtrl.text.trim(),
-                      bio: bioCtrl.text.trim().isEmpty ? null : bioCtrl.text.trim(),
-                      photoUrl: photoUrl,
-                    );
-                    if (mounted) nav.pop();
-                  },
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Save'),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheet) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              top: 16,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundImage: avatarBytes != null
+                          ? MemoryImage(avatarBytes!)
+                          : (p.photoUrl != null
+                                    ? NetworkImage(p.photoUrl!)
+                                    : null)
+                                as ImageProvider<Object>?,
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final picker = ImagePicker();
+                        final x = await picker.pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 85,
+                        );
+                        if (x != null) {
+                          final bytes = await x.readAsBytes();
+                          setSheet(() => avatarBytes = bytes);
+                        }
+                      },
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      label: const Text('Change avatar'),
+                    ),
+                  ],
                 ),
-              )
-            ],
-          ),
-        );
-      }),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Display name'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: bioCtrl,
+                  decoration: const InputDecoration(labelText: 'Bio'),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final nav = Navigator.of(context);
+                      String? photoUrl;
+                      if (avatarBytes != null) {
+                        try {
+                          photoUrl = await StorageService().uploadImageBytes(
+                            avatarBytes!,
+                            folder: 'avatars',
+                          );
+                        } catch (_) {}
+                      }
+                      await _svc.updateProfile(
+                        displayName: nameCtrl.text.trim().isEmpty
+                            ? null
+                            : nameCtrl.text.trim(),
+                        bio: bioCtrl.text.trim().isEmpty
+                            ? null
+                            : bioCtrl.text.trim(),
+                        photoUrl: photoUrl,
+                      );
+                      if (mounted) nav.pop();
+                    },
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Save'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -414,8 +533,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> with SingleTi
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.black54, fontSize: 12)),
-          Text('$v', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+          Text(
+            '$v',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
         ],
       ),
     );
@@ -426,7 +551,11 @@ class _PostCard extends StatelessWidget {
   final CommunityPost post;
   final VoidCallback onLike;
   final VoidCallback onComment;
-  const _PostCard({required this.post, required this.onLike, required this.onComment});
+  const _PostCard({
+    required this.post,
+    required this.onLike,
+    required this.onComment,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -441,26 +570,47 @@ class _PostCard extends StatelessWidget {
               children: [
                 const CircleAvatar(child: Icon(Icons.person)),
                 const SizedBox(width: 8),
-                Expanded(child: Text('User ${post.userId}', maxLines: 1, overflow: TextOverflow.ellipsis)),
-                Text(_fmtTime(post.createdAt), style: const TextStyle(color: Colors.black54, fontSize: 12)),
+                Expanded(
+                  child: Text(
+                    'User ${post.userId}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text(
+                  _fmtTime(post.createdAt),
+                  style: const TextStyle(color: Colors.black54, fontSize: 12),
+                ),
               ],
             ),
             const SizedBox(height: 8),
             Text(post.content),
             if (post.tags.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Wrap(spacing: 6, runSpacing: 6, children: post.tags.map((t) => Chip(label: Text('#$t'))).toList()),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: post.tags
+                    .map((t) => Chip(label: Text('#$t')))
+                    .toList(),
+              ),
             ],
             const SizedBox(height: 8),
             Row(
               children: [
-                IconButton(onPressed: onLike, icon: const Icon(Icons.thumb_up_alt_outlined)),
+                IconButton(
+                  onPressed: onLike,
+                  icon: const Icon(Icons.thumb_up_alt_outlined),
+                ),
                 Text('${post.likesCount}'),
                 const SizedBox(width: 16),
-                IconButton(onPressed: onComment, icon: const Icon(Icons.mode_comment_outlined)),
+                IconButton(
+                  onPressed: onComment,
+                  icon: const Icon(Icons.mode_comment_outlined),
+                ),
                 Text('${post.commentsCount}'),
               ],
-            )
+            ),
           ],
         ),
       ),
@@ -490,7 +640,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -501,7 +653,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
-                      decoration: const InputDecoration(hintText: 'Add a comment', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        hintText: 'Add a comment',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -526,7 +681,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   final comments = snap.data ?? [];
                   return ListView.separated(
                     shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     itemCount: comments.length,
                     separatorBuilder: (_, __) => const Divider(height: 8),
                     itemBuilder: (context, i) => ListTile(
