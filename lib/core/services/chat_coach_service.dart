@@ -44,43 +44,65 @@ class ChatCoachService {
     return ChatProvider.simulated;
   }
 
-  Future<ChatReply> reply({required List<ChatTurn> history, ChatProvider? provider}) async {
+  Future<ChatReply> reply({required List<ChatTurn> history, ChatProvider? provider, ChatTopic topic = ChatTopic.generalHealth}) async {
     // Offline mode short-circuits to simulated response
     try {
       final p = await PrivacySettingsService().load();
       if (p.offlineMode) {
-        return ChatReply(text: _simulate(history), provider: ChatProvider.simulated, note: 'offline mode');
+        return ChatReply(text: _simulate(history, topic), provider: ChatProvider.simulated, note: 'offline mode');
       }
     } catch (_) {}
     final chosen = provider ?? autoProvider;
+    final themed = _injectPrimer(history, topic);
     switch (chosen) {
       case ChatProvider.gemini:
         try {
-          final txt = await _callGemini(history);
+          final txt = await _callGemini(themed);
           return ChatReply(text: txt, provider: chosen);
         } catch (e) {
-          return ChatReply(text: _simulate(history), provider: ChatProvider.simulated, note: 'Gemini fallback: $e');
+          return ChatReply(text: _simulate(history, topic), provider: ChatProvider.simulated, note: 'Gemini fallback: $e');
         }
       case ChatProvider.openai:
         try {
-          final txt = await _callOpenAI(history);
+          final txt = await _callOpenAI(themed, topic: topic);
           return ChatReply(text: txt, provider: chosen);
         } catch (e) {
-          return ChatReply(text: _simulate(history), provider: ChatProvider.simulated, note: 'OpenAI fallback: $e');
+          return ChatReply(text: _simulate(history, topic), provider: ChatProvider.simulated, note: 'OpenAI fallback: $e');
         }
       case ChatProvider.huggingFace:
         try {
-          final txt = await _callHF(history);
+          final txt = await _callHF(themed, topic: topic);
           return ChatReply(text: txt, provider: chosen);
         } catch (e) {
-          return ChatReply(text: _simulate(history), provider: ChatProvider.simulated, note: 'HF fallback: $e');
+          return ChatReply(text: _simulate(history, topic), provider: ChatProvider.simulated, note: 'HF fallback: $e');
         }
       case ChatProvider.simulated:
-        return ChatReply(text: _simulate(history), provider: chosen);
+        return ChatReply(text: _simulate(history, topic), provider: chosen);
     }
   }
 
-  String _simulate(List<ChatTurn> history) {
+  List<ChatTurn> _injectPrimer(List<ChatTurn> history, ChatTopic topic) {
+    final primer = _topicPrimer(topic);
+    if (primer == null) return history;
+    // Insert a leading user turn to act as a system-like primer for providers without system role
+    return [
+      ChatTurn(role: 'user', content: primer),
+      ...history,
+    ];
+  }
+
+  String? _topicPrimer(ChatTopic topic) {
+    switch (topic) {
+      case ChatTopic.motivation:
+        return 'SYSTEM: You are a supportive health coach focused on motivation. Use short, encouraging messages with 2-4 actionable ideas.';
+      case ChatTopic.dietAdvice:
+        return 'SYSTEM: You are a nutrition coach. Provide concise diet advice (2-4 bullets) tailored to students and budget-friendly options when possible.';
+      case ChatTopic.generalHealth:
+        return 'SYSTEM: You are a friendly general health coach. Keep answers brief, practical, and safe. When unsure, recommend seeking professional care.';
+    }
+  }
+
+  String _simulate(List<ChatTurn> history, ChatTopic topic) {
     final last = history.lastOrNull?.content.toLowerCase() ?? '';
     if (last.contains('protein')) {
       return 'Protein ideas: eggs, beans/lentils, yogurt, chicken, sardine. Aim ~1.2–2.0 g/kg body weight. Match with veggies + whole grains.';
@@ -94,7 +116,14 @@ class ChatCoachService {
     if (last.contains('student') || last.contains('budget')) {
       return 'Budget-friendly: rice + beans + plantain; lentil stew with rice; sardine pasta; oats with peanut butter + banana.';
     }
-    return 'I\'m your AI nutrition coach. Ask about meals, mood-supportive foods, protein planning, or student-friendly budget meals.';
+    switch (topic) {
+      case ChatTopic.motivation:
+        return 'You\'ve got this. Try a 10-minute walk, a glass of water, and one small win to build momentum today.';
+      case ChatTopic.dietAdvice:
+        return 'Quick diet tip: build meals with protein + fiber + color. Example: beans + rice + greens + avocado.';
+      case ChatTopic.generalHealth:
+        return 'I\'m your AI coach. Ask about motivation, diet planning, or general health questions.';
+    }
   }
 
   Future<String> _callGemini(List<ChatTurn> history) async {
@@ -123,7 +152,7 @@ class ChatCoachService {
     throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
   }
 
-  Future<String> _callOpenAI(List<ChatTurn> history) async {
+  Future<String> _callOpenAI(List<ChatTurn> history, {required ChatTopic topic}) async {
   if (_openaiKey.isEmpty) throw Exception('Missing OPENAI_API_KEY (or OPENAI_KEY)');
     final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
     final messages = history
@@ -135,7 +164,7 @@ class ChatCoachService {
     // System primer keeps replies supportive and concise.
     messages.insert(0, {
       'role': 'system',
-      'content': 'You are a supportive student nutrition coach. Be kind, concise, and actionable.'
+      'content': _topicPrimer(topic) ?? 'You are a supportive student nutrition coach. Be kind, concise, and actionable.'
     });
     final headers = {
       'Authorization': 'Bearer $_openaiKey',
@@ -156,10 +185,11 @@ class ChatCoachService {
     throw Exception('OpenAI HTTP ${resp.statusCode}: ${resp.body}');
   }
 
-  Future<String> _callHF(List<ChatTurn> history) async {
+  Future<String> _callHF(List<ChatTurn> history, {required ChatTopic topic}) async {
     if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
     final uri = Uri.parse('https://api-inference.huggingface.co/models/$_hfModel');
-    final joined = history.map((h) => '${h.role.toUpperCase()}: ${h.content}').join('\n');
+    final primer = _topicPrimer(topic) ?? '';
+    final joined = ([if (primer.isNotEmpty) 'SYSTEM: $primer', ...history.map((h) => '${h.role.toUpperCase()}: ${h.content}')]).join('\n');
     final prompt = '$joined\nASSISTANT:';
     final headers = {'Authorization': 'Bearer $_hfKey', 'Content-Type': 'application/json'};
     final body = jsonEncode({'inputs': prompt, 'parameters': {'max_new_tokens': 200, 'temperature': 0.4}});
@@ -202,3 +232,5 @@ enum ChatProvider { simulated, gemini, openai, huggingFace }
 extension _LastOrNull<T> on List<T> {
   T? get lastOrNull => isEmpty ? null : this[length - 1];
 }
+
+enum ChatTopic { motivation, dietAdvice, generalHealth }

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:commontable_ai_app/core/services/health_sync_service.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/chat_coach_service.dart';
+import 'package:commontable_ai_app/core/services/chat_history_service.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
 import 'package:commontable_ai_app/core/services/currency_service.dart';
 
@@ -21,6 +23,7 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 	final _health = HealthSyncService();
 	final _insights = NutritionInsightsService();
 	final _chat = ChatCoachService();
+  final _history = ChatHistoryService();
 
 	Map<String, double> vitals = {}; // e.g., hr_avg, hr_rest
 	Map<String, double> activity = {}; // steps, active_min
@@ -34,6 +37,10 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 	// Mini chat
 	final List<_Msg> _msgs = [];
 	final _controller = TextEditingController();
+  ChatTopic _topic = ChatTopic.generalHealth;
+  Timer? _metricTicker;
+  String? _uid; // signed-in user id for cross-device chat persistence
+  StreamSubscription<List<ChatMessage>>? _chatSub;
 
 	@override
 	void initState() {
@@ -47,8 +54,25 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 		}
     _currency = await AppSettings().getCurrencyCode();
     _tier = await AppSettings().getSubscriptionTier();
+		_uid = FirebaseAuth.instance.currentUser?.uid;
+		if (_uid != null) {
+			_subscribeChat(userId: _uid!);
+		}
 		await _loadLatestAssessment();
 		await _syncWearablesOrSimulate();
+    _startRealtimeMetrics();
+	}
+
+	void _subscribeChat({required String userId, int limit = 200}) {
+		_chatSub?.cancel();
+		_chatSub = _history.watch(userId: userId, limit: limit).listen((items) {
+			if (!mounted) return;
+			setState(() {
+				_msgs
+					..clear()
+					..addAll(items.map((m) => _Msg(m.text, m.role == 'user')));
+			});
+		});
 	}
 
   bool get _hasPlus => _tier == 'plus' || _tier == 'premium';
@@ -90,6 +114,33 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 			}
 			if (mounted) setState(() {});
 		} catch (_) {}
+	}
+
+	void _startRealtimeMetrics() {
+		_metricTicker?.cancel();
+		// Update every 5 seconds with small variations
+		_metricTicker = Timer.periodic(const Duration(seconds: 5), (_) {
+			final rnd = Random();
+			setState(() {
+				// Heart rates jitter within a reasonable band
+				final hrAvg = (vitals['hr_avg'] ?? 70);
+				final hrRest = (vitals['hr_rest'] ?? 62);
+				vitals['hr_avg'] = (hrAvg + (rnd.nextInt(5) - 2)).clamp(55, 110).toDouble();
+				vitals['hr_rest'] = (hrRest + (rnd.nextInt(3) - 1)).clamp(45, 90).toDouble();
+
+				// Steps increase gradually
+				final steps = (activity['steps'] ?? 0);
+				activity['steps'] = (steps + rnd.nextInt(40)).toDouble();
+
+				// Active minutes sometimes bump
+				final active = (activity['active_min'] ?? 0);
+				activity['active_min'] = (active + (rnd.nextBool() ? 1 : 0)).toDouble();
+
+				// Sleep metrics remain steady during day
+				sleep['sleep_hours'] = sleep['sleep_hours'] ?? 7.0;
+				sleep['sleep_efficiency'] = sleep['sleep_efficiency'] ?? 88.0;
+			});
+		});
 	}
 
 	Future<void> _generateReport() async {
@@ -169,15 +220,46 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 	Future<void> _sendChat(String text) async {
 		final trimmed = text.trim();
 		if (trimmed.isEmpty) return;
-		setState(() => _msgs.add(_Msg(trimmed, true)));
+		// Clear input early for snappy UX
+		_controller.clear();
+
+		final uid = _uid;
+		if (uid == null) {
+			// Fallback to local-only chat when not signed in
+			setState(() => _msgs.add(_Msg(trimmed, true)));
+			try {
+				final turns = _msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)).toList();
+				final reply = await _chat.reply(history: turns, topic: _topic);
+				setState(() => _msgs.add(_Msg(reply.text, false)));
+			} catch (e) {
+				setState(() => _msgs.add(_Msg('Sorry, I cannot respond right now. ($e)', false)));
+			}
+			return;
+		}
+
+		// Signed-in: write to Firestore and rely on stream to render
 		try {
-			final turns = _msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)).toList();
-			final reply = await _chat.reply(history: turns);
-			setState(() => _msgs.add(_Msg(reply.text, false)));
+			await _history.addMessage(userId: uid, role: 'user', text: trimmed, topic: _topic.name);
+			// Build context including the just-sent user message for immediate LLM context
+			final turns = [
+				..._msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)),
+				ChatTurn(role: 'user', content: trimmed),
+			];
+			final reply = await _chat.reply(history: turns, topic: _topic);
+			await _history.addMessage(userId: uid, role: 'assistant', text: reply.text, topic: _topic.name);
 		} catch (e) {
-			setState(() => _msgs.add(_Msg('Sorry, I cannot respond right now. ($e)', false)));
+			if (!mounted) return;
+			ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chat failed: $e')));
 		}
 	}
+
+  @override
+  void dispose() {
+    _metricTicker?.cancel();
+    _controller.dispose();
+		_chatSub?.cancel();
+    super.dispose();
+  }
 
 	@override
 	Widget build(BuildContext context) {
@@ -264,7 +346,7 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 									),
 
 						const SizedBox(height: 20),
-						const Text('AI Nutritionist', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+						const Text('AI Coach', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 						const SizedBox(height: 8),
 												Wrap(
 													spacing: 12,
@@ -284,6 +366,28 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 														),
 													],
 												),
+
+	            // Topic chips
+	            Wrap(
+	              spacing: 8,
+	              children: [
+	                ChoiceChip(
+	                  label: const Text('Motivation'),
+	                  selected: _topic == ChatTopic.motivation,
+	                  onSelected: (b) => setState(() => _topic = ChatTopic.motivation),
+	                ),
+	                ChoiceChip(
+	                  label: const Text('Diet advice'),
+	                  selected: _topic == ChatTopic.dietAdvice,
+	                  onSelected: (b) => setState(() => _topic = ChatTopic.dietAdvice),
+	                ),
+	                ChoiceChip(
+	                  label: const Text('Health Q&A'),
+	                  selected: _topic == ChatTopic.generalHealth,
+	                  onSelected: (b) => setState(() => _topic = ChatTopic.generalHealth),
+	                ),
+	              ],
+	            ),
 						Container(
 							decoration: BoxDecoration(color: Colors.teal.withOpacity(0.06), borderRadius: BorderRadius.circular(12)),
 							padding: const EdgeInsets.all(8),
