@@ -382,76 +382,74 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 					children: [
 						const Text('Plan on a Student Budget', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
 						const SizedBox(height: 12),
-												LayoutBuilder(
-													builder: (context, constraints) {
-														final isNarrow = constraints.maxWidth < 360;
-														final fields = [
-															Expanded(
-																child: TextFormField(
-										controller: _budgetCtrl,
-										keyboardType: TextInputType.number,
-										decoration: const InputDecoration(
-											labelText: 'Budget per day (approx.)',
-											helperText: 'Enter a number in your local currency',
+										LayoutBuilder(
+											builder: (context, constraints) {
+												final isNarrow = constraints.maxWidth < 360;
+												final budgetField = TextFormField(
+													controller: _budgetCtrl,
+													keyboardType: TextInputType.number,
+													decoration: const InputDecoration(
+														labelText: 'Budget per day (approx.)',
+														helperText: 'Enter a number in your local currency',
+													),
+												);
+												final mealsField = DropdownButtonFormField<int>(
+													initialValue: _mealsPerDay,
+													items: const [
+														DropdownMenuItem(value: 2, child: Text('2 meals / day')),
+														DropdownMenuItem(value: 3, child: Text('3 meals / day')),
+														DropdownMenuItem(value: 4, child: Text('4 meals / day')),
+													],
+													onChanged: (v) => setState(() => _mealsPerDay = v ?? _mealsPerDay),
+													decoration: const InputDecoration(labelText: 'Meals per day'),
+												);
+
+												if (isNarrow) {
+													return Column(
+														crossAxisAlignment: CrossAxisAlignment.start,
+														children: [budgetField, const SizedBox(height: 12), mealsField],
+													);
+												}
+												return Row(
+													children: [
+														Expanded(child: budgetField),
+														const SizedBox(width: 12),
+														Expanded(child: mealsField),
+													],
+												);
+											},
 										),
-																		),
-																	),
-																	const SizedBox(width: 12),
-																	Expanded(
-																		child: DropdownButtonFormField<int>(
-										initialValue: _mealsPerDay,
-										items: const [
-											DropdownMenuItem(value: 2, child: Text('2 meals / day')),
-											DropdownMenuItem(value: 3, child: Text('3 meals / day')),
-											DropdownMenuItem(value: 4, child: Text('4 meals / day')),
-										],
-										onChanged: (v) => setState(() => _mealsPerDay = v ?? _mealsPerDay),
-										decoration: const InputDecoration(labelText: 'Meals per day'),
-																		),
-																	),
-																];
-														if (isNarrow) {
-															return Column(
-																crossAxisAlignment: CrossAxisAlignment.start,
-																children: [fields[0], const SizedBox(height: 12), fields[2]],
-															);
-														}
-														return Row(children: fields);
-													},
-												),
 						const SizedBox(height: 12),
-												LayoutBuilder(
-													builder: (context, constraints) {
-														final isNarrow = constraints.maxWidth < 360;
-														final field = Expanded(
-															child: DropdownButtonFormField<String>(
-										initialValue: _region,
-										items: const [
-											DropdownMenuItem(value: 'Default', child: Text('Region: Default')),
-											DropdownMenuItem(value: 'Nigeria', child: Text('Region: Nigeria')),
-											DropdownMenuItem(value: 'Ghana', child: Text('Region: Ghana')),
-											DropdownMenuItem(value: 'Kenya', child: Text('Region: Kenya')),
-											DropdownMenuItem(value: 'USA', child: Text('Region: USA')),
-										],
-										onChanged: (v) {
-											if (v == null) return;
-											setState(() {
-												_region = v;
-												_allSuggestions = _buildSuggestionCatalog(_region);
-												_mentalHealth = _buildMentalHealthSuggestions(_region);
-												_generated = [];
-												_selected.clear();
-											});
-										},
-										decoration: const InputDecoration(labelText: 'Region presets (local staples)'),
-																			),
-														);
-														if (isNarrow) {
-															return field;
-														}
-														return Row(children: [field]);
+										LayoutBuilder(
+											builder: (context, constraints) {
+												final isNarrow = constraints.maxWidth < 360;
+												final regionField = DropdownButtonFormField<String>(
+													initialValue: _region,
+													items: const [
+														DropdownMenuItem(value: 'Default', child: Text('Region: Default')),
+														DropdownMenuItem(value: 'Nigeria', child: Text('Region: Nigeria')),
+														DropdownMenuItem(value: 'Ghana', child: Text('Region: Ghana')),
+														DropdownMenuItem(value: 'Kenya', child: Text('Region: Kenya')),
+														DropdownMenuItem(value: 'USA', child: Text('Region: USA')),
+													],
+													onChanged: (v) {
+														if (v == null) return;
+														setState(() {
+															_region = v;
+															_allSuggestions = _buildSuggestionCatalog(_region);
+															_mentalHealth = _buildMentalHealthSuggestions(_region);
+															_generated = [];
+															_selected.clear();
+														});
 													},
-												),
+													decoration: const InputDecoration(labelText: 'Region presets (local staples)'),
+												);
+												if (isNarrow) {
+													return regionField;
+												}
+												return Row(children: [Expanded(child: regionField)]);
+											},
+										),
 						const SizedBox(height: 8),
 						SwitchListTile(
 							contentPadding: EdgeInsets.zero,
