@@ -54,6 +54,28 @@ class _ProgressDashboardScreenState extends State<ProgressDashboardScreen> {
       body: StreamBuilder<List<_AssessmentDoc>>(
         stream: _assessmentsStream(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_sync_outlined, size: 48, color: Colors.orange),
+                    const SizedBox(height: 8),
+                    const Text('Setting things up…', style: TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Your analytics index is building. This can take a couple of minutes after deployment. '
+                      'You can continue using the app and check back shortly.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
