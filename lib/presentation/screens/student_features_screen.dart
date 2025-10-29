@@ -178,7 +178,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 
 	Future<void> _generate() async {
 		FocusScope.of(context).unfocus();
-		final budgetPerDay = double.tryParse(_budgetCtrl.text.trim()) ?? 3000.0;
+		final budgetPerDay = _parseNumber(_budgetCtrl.text.trim()) ?? 3000.0;
 		final targetPerMeal = (budgetPerDay / _mealsPerDay);
 
 		setState(() {
@@ -194,11 +194,26 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				.where((m) => !_useLocalStaples || m.usesLocalStaples)
 				.toList();
 
+		// Progressive relaxation if pool is too small
+		if (pool.isEmpty) {
+			pool = _allSuggestions.where((m) => (!_vegetarianOnly || m.vegetarian)).toList();
+		}
+		if (pool.isEmpty) {
+			pool = List.of(_allSuggestions); // last resort: ignore filters
+		}
+
 		// Keep meals that fit target per meal with a small tolerance
 		pool.sort((a, b) => a.totalCost.compareTo(b.totalCost));
 		final withinBudget = pool.where((m) => m.totalCost <= targetPerMeal * 1.1).toList();
 		// If too few, relax constraint slightly
-		final candidates = withinBudget.isNotEmpty ? withinBudget : pool.where((m) => m.totalCost <= targetPerMeal * 1.35).toList();
+		List<MealSuggestion> candidates = withinBudget.isNotEmpty
+				? withinBudget
+				: pool.where((m) => m.totalCost <= targetPerMeal * 1.35).toList();
+
+		// If still none (very low budget), pick the cheapest few overall
+		if (candidates.isEmpty) {
+			candidates = pool.take(8).toList();
+		}
 
 		// Return up to 6 varied suggestions
 		final chosen = <MealSuggestion>[];
@@ -211,6 +226,17 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			_generated = chosen;
 			_loading = false;
 		});
+		if (chosen.isEmpty && mounted) {
+			ScaffoldMessenger.of(context).showSnackBar(
+				const SnackBar(content: Text('No meals matched your filters. Showing budget-friendly options.')),
+			);
+		}
+	}
+
+	double? _parseNumber(String raw) {
+		// Accept common formats like "3,000" or "3000" or "3000.50"
+		final cleaned = raw.replaceAll(RegExp(r'[^0-9\.]'), '');
+		return double.tryParse(cleaned);
 	}
 
 	@override

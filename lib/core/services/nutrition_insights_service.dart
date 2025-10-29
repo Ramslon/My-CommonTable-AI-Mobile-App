@@ -219,37 +219,8 @@ class NutritionInsightsService {
 
   Future<String> _callGemini(Map<String, double> intake) async {
     if (_geminiKey.isEmpty) throw Exception('Missing GEMINI_API_KEY');
-    final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiKey');
-
     final prompt = _buildPrompt(intake);
-    final body = {
-      'contents': [
-        {
-          'role': 'user',
-          'parts': [
-            {'text': prompt}
-          ]
-        }
-      ]
-    };
-
-    final resp = await http
-        .post(uri, headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
-        .timeout(const Duration(seconds: 20));
-
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final candidates = (data['candidates'] as List?) ?? const [];
-      if (candidates.isNotEmpty) {
-        final content = candidates.first['content'] as Map<String, dynamic>?;
-        final parts = (content?['parts'] as List?) ?? const [];
-        final text = parts.map((p) => p['text']).whereType<String>().join('\n').trim();
-        if (text.isNotEmpty) return text;
-      }
-      throw Exception('No text in Gemini response');
-    } else {
-      throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
-    }
+    return _geminiGenerate(prompt);
   }
 
   Future<String> _callHuggingFace(Map<String, double> intake) async {
@@ -288,7 +259,17 @@ class NutritionInsightsService {
 
   Future<String> _callGeminiWithPrompt(String prompt) async {
     if (_geminiKey.isEmpty) throw Exception('Missing GEMINI_API_KEY');
-    final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiKey');
+    return _geminiGenerate(prompt);
+  }
+
+  Future<String> _geminiGenerate(String prompt) async {
+    // Try primary model; on 404, try alternates; on 429/503, retry with backoff
+    final modelsToTry = <String>[
+      _geminiModel,
+      if (_geminiModel != 'gemini-1.5-flash-latest') 'gemini-1.5-flash-latest',
+      if (_geminiModel != 'gemini-1.5-flash-8b') 'gemini-1.5-flash-8b',
+    ];
+
     final body = {
       'contents': [
         {
@@ -299,22 +280,40 @@ class NutritionInsightsService {
         }
       ]
     };
-    final resp = await http
-        .post(uri, headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
-        .timeout(const Duration(seconds: 20));
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final candidates = (data['candidates'] as List?) ?? const [];
-      if (candidates.isNotEmpty) {
-        final content = candidates.first['content'] as Map<String, dynamic>?;
-        final parts = (content?['parts'] as List?) ?? const [];
-        final text = parts.map((p) => p['text']).whereType<String>().join('\n').trim();
-        if (text.isNotEmpty) return text;
+
+    for (final model in modelsToTry) {
+      int attempt = 0;
+      while (attempt < 3) {
+        attempt++;
+        final uri = Uri.parse('https://generativelanguage.googleapis.com/v1/models/$model:generateContent?key=$_geminiKey');
+        final resp = await http
+            .post(uri, headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
+            .timeout(const Duration(seconds: 20));
+        if (resp.statusCode >= 200 && resp.statusCode < 300) {
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          final candidates = (data['candidates'] as List?) ?? const [];
+          if (candidates.isNotEmpty) {
+            final content = candidates.first['content'] as Map<String, dynamic>?;
+            final parts = (content?['parts'] as List?) ?? const [];
+            final text = parts.map((p) => p['text']).whereType<String>().join('\n').trim();
+            if (text.isNotEmpty) return text;
+          }
+          throw Exception('No text in Gemini response');
+        }
+        // 404 => model not found in region; try next model immediately
+        if (resp.statusCode == 404) break;
+        // 429/503 => backoff and retry
+        if (resp.statusCode == 429 || resp.statusCode == 503) {
+          final retryAfter = int.tryParse(resp.headers['retry-after'] ?? '0') ?? 0;
+          final delayMs = retryAfter > 0 ? retryAfter * 1000 : (400 * attempt);
+          await Future.delayed(Duration(milliseconds: delayMs));
+          continue;
+        }
+        // Other errors: throw and stop trying this model
+        throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
       }
-      throw Exception('No text in Gemini response');
-    } else {
-      throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
     }
+    throw Exception('Gemini: all model attempts failed (404 or rate limits).');
   }
 
   Future<String> _callHFWithPrompt(String prompt) async {
@@ -355,30 +354,49 @@ class NutritionInsightsService {
       'Authorization': 'Bearer $_openaiKey',
       'Content-Type': 'application/json',
     };
-    final body = jsonEncode({
-      'model': _openaiModel,
-      'messages': [
-        {
-          'role': 'system',
-          'content': 'You are a nutrition and wellness coach. Keep answers concise, safe, and practical.'
-        },
-        {'role': 'user', 'content': prompt},
-      ],
-      'temperature': 0.4,
-      'max_tokens': 220,
-    });
-    final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 25));
-    if (resp.statusCode >= 200 && resp.statusCode < 300) {
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final choices = (data['choices'] as List?) ?? const [];
-      if (choices.isNotEmpty) {
-        final msg = choices.first['message'];
-        final txt = (msg?['content'] as String?)?.trim();
-        if (txt != null && txt.isNotEmpty) return txt;
+
+    int attempt = 0;
+    int maxTokens = 220;
+    while (attempt < 3) {
+      attempt++;
+      final body = jsonEncode({
+        'model': _openaiModel,
+        'messages': [
+          {
+            'role': 'system',
+            'content': 'You are a nutrition and wellness coach. Keep answers concise, safe, and practical.'
+          },
+          {'role': 'user', 'content': prompt},
+        ],
+        'temperature': 0.4,
+        'max_tokens': maxTokens,
+      });
+      final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 25));
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        final choices = (data['choices'] as List?) ?? const [];
+        if (choices.isNotEmpty) {
+          final msg = choices.first['message'];
+          final txt = (msg?['content'] as String?)?.trim();
+          if (txt != null && txt.isNotEmpty) return txt;
+        }
+        throw Exception('No text in OpenAI response');
       }
-      throw Exception('No text in OpenAI response');
+      if (resp.statusCode == 429) {
+        // Backoff using Retry-After or exponential; also reduce max_tokens on each retry
+        final retryAfter = int.tryParse(resp.headers['retry-after'] ?? '0') ?? 0;
+        final delayMs = retryAfter > 0 ? retryAfter * 1000 : (500 * attempt);
+        maxTokens = (maxTokens * 0.75).round().clamp(80, 220); // lower token usage
+        await Future.delayed(Duration(milliseconds: delayMs));
+        continue;
+      }
+      if (resp.statusCode == 503) {
+        await Future.delayed(Duration(milliseconds: 400 * attempt));
+        continue;
+      }
+      throw Exception('OpenAI HTTP ${resp.statusCode}: ${resp.body}');
     }
-    throw Exception('OpenAI HTTP ${resp.statusCode}: ${resp.body}');
+    throw Exception('OpenAI: rate limited; retries exhausted. Please try again later.');
   }
 
   String _buildWellnessPrompt({
