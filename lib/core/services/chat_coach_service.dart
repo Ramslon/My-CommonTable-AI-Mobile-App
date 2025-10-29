@@ -108,6 +108,22 @@ class ChatCoachService {
         return;
       }
     }
+    if (chosen == ChatProvider.gemini) {
+      try {
+        yield* _geminiStream(themed);
+        return;
+      } catch (e) {
+        // fall through to non-streaming attempt below
+      }
+    }
+    if (chosen == ChatProvider.huggingFace) {
+      try {
+        yield* _hfStream(themed, topic: topic);
+        return;
+      } catch (e) {
+        // fall through to non-streaming attempt below
+      }
+    }
     // Non-streaming providers: emit a single chunk
     try {
       String txt;
@@ -299,6 +315,111 @@ class ChatCoachService {
         }
       }
     }
+  }
+
+  /// Gemini streaming using streamGenerateContent endpoint.
+  /// Note: Uses chunked JSON; we extract candidate content text incrementally.
+  Stream<ChatDelta> _geminiStream(List<ChatTurn> history) async* {
+    if (_geminiKey.isEmpty) {
+      throw Exception('Missing GEMINI_API_KEY');
+    }
+    final uri = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:streamGenerateContent?key=$_geminiKey');
+    final contents = history
+        .map((h) => {
+              'role': h.role == 'user' ? 'user' : 'model',
+              'parts': [
+                {'text': h.content}
+              ]
+            })
+        .toList();
+    final req = http.Request('POST', uri);
+    req.headers['Content-Type'] = 'application/json';
+    req.body = jsonEncode({'contents': contents});
+    final resp = await req.send().timeout(const Duration(seconds: 30));
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      final err = await resp.stream.bytesToString();
+      throw Exception('Gemini HTTP ${resp.statusCode}: $err');
+    }
+    String buffer = '';
+    await for (final chunk in resp.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+      if (chunk.trim().isEmpty) continue;
+      try {
+        final data = jsonDecode(chunk);
+        // Responses may contain candidates[].content.parts[].text
+        if (data is Map<String, dynamic>) {
+          final candidates = (data['candidates'] as List?) ?? const [];
+          if (candidates.isNotEmpty) {
+            final content = candidates.first['content'] as Map<String, dynamic>?;
+            final parts = (content?['parts'] as List?) ?? const [];
+            for (final p in parts) {
+              final t = (p as Map?)?['text'];
+              if (t is String && t.isNotEmpty) {
+                buffer += t;
+                yield ChatDelta(text: buffer, done: false, provider: ChatProvider.gemini);
+              }
+            }
+          }
+        }
+      } catch (_) {
+        // ignore malformed line
+      }
+    }
+    yield ChatDelta(text: buffer, done: true, provider: ChatProvider.gemini);
+  }
+
+  /// Hugging Face streaming (best-effort): some models/endpoints support streaming.
+  /// We attempt to set 'stream': true and read incremental tokens.
+  Stream<ChatDelta> _hfStream(List<ChatTurn> history, {required ChatTopic topic}) async* {
+    if (_hfKey.isEmpty) {
+      throw Exception('Missing HF_API_KEY');
+    }
+    final uri = Uri.parse('https://api-inference.huggingface.co/models/$_hfModel');
+    final primer = _topicPrimer(topic) ?? '';
+    final joined = ([if (primer.isNotEmpty) 'SYSTEM: $primer', ...history.map((h) => '${h.role.toUpperCase()}: ${h.content}')]).join('\n');
+    final prompt = '$joined\nASSISTANT:';
+    final req = http.Request('POST', uri);
+    req.headers['Authorization'] = 'Bearer $_hfKey';
+    req.headers['Content-Type'] = 'application/json';
+    req.headers['Accept'] = 'text/event-stream';
+    req.body = jsonEncode({
+      'inputs': prompt,
+      'parameters': {
+        'max_new_tokens': 200,
+        'temperature': 0.4,
+        'stream': true,
+      }
+    });
+    final resp = await req.send().timeout(const Duration(seconds: 30));
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      final err = await resp.stream.bytesToString();
+      throw Exception('HF HTTP ${resp.statusCode}: $err');
+    }
+    String buffer = '';
+    await for (final line in resp.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+      if (line.trim().isEmpty) continue;
+      // Try to parse common streaming shapes: data: {"token": {"text": "..."}}
+      final raw = line.startsWith('data: ') ? line.substring(6) : line;
+      if (raw == '[DONE]') break;
+      try {
+        final obj = jsonDecode(raw);
+        if (obj is Map<String, dynamic>) {
+          final tok = (obj['token'] as Map?)?['text'];
+          if (tok is String && tok.isNotEmpty) {
+            buffer += tok;
+            yield ChatDelta(text: buffer, done: false, provider: ChatProvider.huggingFace);
+            continue;
+          }
+          final txt = obj['generated_text'] ?? obj['text'];
+          if (txt is String && txt.isNotEmpty) {
+            buffer = txt;
+            yield ChatDelta(text: buffer, done: false, provider: ChatProvider.huggingFace);
+          }
+        }
+      } catch (_) {
+        // ignore unparseable chunks
+      }
+    }
+    yield ChatDelta(text: buffer, done: true, provider: ChatProvider.huggingFace);
   }
 
   Future<String> _callHF(List<ChatTurn> history, {required ChatTopic topic}) async {

@@ -6,12 +6,14 @@ import 'package:commontable_ai_app/core/services/supabase_service.dart';
 
 class DiagnosticsResult {
   final ServiceStatus gemini;
+  final ServiceStatus openai;
   final ServiceStatus huggingFace;
   final ServiceStatus supabase;
   final DateTime completedAt;
 
   const DiagnosticsResult({
     required this.gemini,
+    required this.openai,
     required this.huggingFace,
     required this.supabase,
     required this.completedAt,
@@ -33,10 +35,12 @@ class ServiceStatus {
 class DiagnosticsService {
   Future<DiagnosticsResult> run() async {
     final gemini = await _checkGemini();
+    final openai = await _checkOpenAI();
     final hf = await _checkHF();
     final sb = await _checkSupabase();
     return DiagnosticsResult(
       gemini: gemini,
+      openai: openai,
       huggingFace: hf,
       supabase: sb,
       completedAt: DateTime.now(),
@@ -128,6 +132,39 @@ class DiagnosticsService {
         // ignore: avoid_print
         print('Supabase diag failed: $e');
       }
+      return ServiceStatus(configured: true, reachable: false, message: 'Error: $e');
+    }
+  }
+
+  Future<ServiceStatus> _checkOpenAI() async {
+    final key = (dotenv.maybeGet('OPENAI_API_KEY') ?? '').isNotEmpty
+        ? dotenv.get('OPENAI_API_KEY')
+        : (dotenv.maybeGet('OPENAI_KEY') ?? '').isNotEmpty
+            ? dotenv.get('OPENAI_KEY')
+            : const String.fromEnvironment('OPENAI_API_KEY', defaultValue: String.fromEnvironment('OPENAI_KEY'));
+    final model = (dotenv.maybeGet('OPENAI_MODEL') ?? '').isNotEmpty
+        ? dotenv.get('OPENAI_MODEL')
+        : const String.fromEnvironment('OPENAI_MODEL', defaultValue: 'gpt-4o-mini');
+    if (key.isEmpty) {
+      return const ServiceStatus(configured: false, reachable: false, message: 'OPENAI_API_KEY missing');
+    }
+    try {
+      final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
+      final headers = {'Authorization': 'Bearer $key', 'Content-Type': 'application/json'};
+      final body = jsonEncode({
+        'model': model,
+        'messages': [
+          {'role': 'system', 'content': 'diagnostic'},
+          {'role': 'user', 'content': 'ping'},
+        ],
+        'max_tokens': 1,
+      });
+      final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 12));
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        return const ServiceStatus(configured: true, reachable: true, message: 'OK');
+      }
+      return ServiceStatus(configured: true, reachable: false, message: 'HTTP ${resp.statusCode}: ${resp.body}');
+    } catch (e) {
       return ServiceStatus(configured: true, reachable: false, message: 'Error: $e');
     }
   }

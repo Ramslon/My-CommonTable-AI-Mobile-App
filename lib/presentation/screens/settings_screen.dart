@@ -144,6 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (_diag != null) ...[
                         const SizedBox(height: 8),
                         _diagRow('Gemini', _diag!.gemini),
+                        _diagRow('OpenAI', _diag!.openai),
                         _diagRow('Hugging Face', _diag!.huggingFace),
                         _diagRow('Supabase', _diag!.supabase),
                         const SizedBox(height: 4),
