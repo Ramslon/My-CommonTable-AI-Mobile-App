@@ -84,9 +84,18 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
           };
         });
         _scheduleAnalysisDebounced();
-      }, onError: (e) {
-        // If Firestore denies access, fall back silently to manual/demo data
+      }, onError: (e) async {
         if (!mounted) return;
+        // If index is still building, fall back to a simpler live query without orderBy
+        if (e is FirebaseException && e.code == 'failed-precondition') {
+          _intakeSub?.cancel();
+          await _subscribeIntakeRealtimeFallback(uid);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Indexes building. Using simplified live updates until ready.')),
+          );
+          return;
+        }
+        // Other errors: disable live mode but keep app usable
         setState(() => _live = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Live intake unavailable (${e is FirebaseException ? e.message ?? e.code : e.toString()})')),
@@ -95,6 +104,44 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
     } catch (_) {
       // ignore; stays in manual mode
     }
+  }
+
+  Future<void> _subscribeIntakeRealtimeFallback(String uid) async {
+    final q = FirebaseFirestore.instance
+        .collection('nutritionIntake')
+        .where('userId', isEqualTo: uid)
+        .limit(20);
+    _intakeSub?.cancel();
+    _intakeSub = q.snapshots().listen((snap) {
+      if (!mounted) return;
+      if (snap.docs.isEmpty) return;
+      // Pick the latest by createdAt client-side
+      Map<String, dynamic>? latest;
+      DateTime latestTs = DateTime.fromMillisecondsSinceEpoch(0);
+      for (final d in snap.docs) {
+        final data = d.data();
+        final created = DateTime.tryParse(data['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        if (created.isAfter(latestTs)) {
+          latestTs = created;
+          latest = data;
+        }
+      }
+      if (latest == null) return;
+      setState(() {
+        _intake = {
+          'Calories (kcal)': (latest!['calories'] ?? _intake['Calories (kcal)']).toDouble(),
+          'Protein (g)': (latest['protein'] ?? _intake['Protein (g)']).toDouble(),
+          'Carbs (g)': (latest['carbs'] ?? _intake['Carbs (g)']).toDouble(),
+          'Fat (g)': (latest['fat'] ?? _intake['Fat (g)']).toDouble(),
+          'Fiber (g)': (latest['fiber'] ?? _intake['Fiber (g)']).toDouble(),
+          'Sodium (mg)': (latest['sodium'] ?? _intake['Sodium (mg)']).toDouble(),
+        };
+      });
+      _scheduleAnalysisDebounced();
+    }, onError: (_) {
+      if (!mounted) return;
+      setState(() => _live = false);
+    });
   }
 
   void _scheduleAnalysisDebounced() {
@@ -119,7 +166,48 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
       // Try to fetch the most recent daily intake
     Query<Map<String, dynamic>> q = firestore.collection('nutritionIntake').orderBy('createdAt', descending: true).limit(1);
     if (uid != null) q = q.where('userId', isEqualTo: uid);
-    final snap = await q.get();
+    QuerySnapshot<Map<String, dynamic>> snap;
+    try {
+      snap = await q.get();
+    } on FirebaseException catch (fe) {
+      if (fe.code == 'failed-precondition' && uid != null) {
+        // Fallback: fetch a small window without orderBy and pick latest client-side
+        final alt = await firestore
+            .collection('nutritionIntake')
+            .where('userId', isEqualTo: uid)
+            .limit(20)
+            .get();
+        if (alt.docs.isNotEmpty) {
+          Map<String, dynamic>? latest;
+          DateTime latestTs = DateTime.fromMillisecondsSinceEpoch(0);
+          for (final d in alt.docs) {
+            final data = d.data();
+            final created = DateTime.tryParse(data['createdAt']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+            if (created.isAfter(latestTs)) {
+              latestTs = created;
+              latest = data;
+            }
+          }
+          if (latest != null) {
+            setState(() {
+              _intake = {
+                'Calories (kcal)': (latest!['calories'] ?? _intake['Calories (kcal)']).toDouble(),
+                'Protein (g)': (latest['protein'] ?? _intake['Protein (g)']).toDouble(),
+                'Carbs (g)': (latest['carbs'] ?? _intake['Carbs (g)']).toDouble(),
+                'Fat (g)': (latest['fat'] ?? _intake['Fat (g)']).toDouble(),
+                'Fiber (g)': (latest['fiber'] ?? _intake['Fiber (g)']).toDouble(),
+                'Sodium (mg)': (latest['sodium'] ?? _intake['Sodium (mg)']).toDouble(),
+              };
+            });
+          }
+        }
+        // Also downgrade live mode to fallback subscription
+        await _subscribeIntakeRealtimeFallback(uid);
+        return;
+      } else {
+        rethrow;
+      }
+    }
 
       if (snap.docs.isNotEmpty) {
         final data = snap.docs.first.data();
