@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:commontable_ai_app/core/services/chat_coach_service.dart';
@@ -139,8 +140,18 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
       }
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please sign in to save logs.')));
+        return;
+      }
+
       await FirebaseFirestore.instance.collection('chatNutritionLogs').add({
-        'createdAt': DateTime.now().toIso8601String(),
+        'userId': user.uid,
+        // Use server timestamp for consistent ordering/indexing; keep ISO for debug/export parity
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdAtIso': DateTime.now().toIso8601String(),
         'source': 'chat',
         'content': text,
       });
