@@ -20,6 +20,12 @@ class FirebaseBoot {
       return;
     }
 
+    // Set a default language to avoid null locale headers and ensure consistent
+    // verification messages (e.g., password reset emails).
+    try {
+      await FirebaseAuth.instance.setLanguageCode('en');
+    } catch (_) {}
+
     // Ensure a user for per-user scoping; ignore failures silently.
     try {
       if (FirebaseAuth.instance.currentUser == null) {

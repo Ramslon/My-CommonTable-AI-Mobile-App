@@ -46,8 +46,11 @@ class CommontableAIApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return BiometricGate(
       child: AnimatedBuilder(
-        animation: AccessibilitySettings(),
-        builder: (context, _) => MaterialApp(
+        // Rebuild when either theme or accessibility changes
+        animation: ThemeSettings(),
+        builder: (context, __) => AnimatedBuilder(
+          animation: AccessibilitySettings(),
+          builder: (context, _) => MaterialApp(
         title: 'Commontable AI',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
@@ -85,6 +88,7 @@ class CommontableAIApp extends StatelessWidget {
               child: child!,
             );
           },
+        ),
         ),
       ),
     );
