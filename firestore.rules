@@ -2,56 +2,106 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
-    }
+    rules_version = '2';
+    service cloud.firestore {
+      match /databases/{database}/documents {
 
-    function isOwner(userId) {
-      return signedIn() && request.auth.uid == userId;
-    }
+        function signedIn() {
+          return request.auth != null;
+        }
 
-    // Users collection (app profile)
-    match /users/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-    }
+        function isOwner(userId) {
+          return signedIn() && request.auth.uid == userId;
+        }
 
-    // Preferences keyed by uid
-    match /userPreferences/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-    }
+        // Users collection (app profile)
+        match /users/{uid} {
+          allow read, write: if isOwner(uid);
+        }
 
-      // Publicly readable profiles; users can update their own
-      match /profiles/{uid} {
-        allow read: if true;
-        allow write: if signedIn() && request.auth.uid == uid;
+        // Preferences keyed by uid
+        match /userPreferences/{uid} {
+          allow read, write: if isOwner(uid);
+        }
+
+        // Subscription doc per uid
+        match /subscriptions/{uid} {
+          allow read, write: if isOwner(uid);
+        }
+
+        // Profiles: public read, owner write
+        match /profiles/{uid} {
+          allow read: if true;
+          allow write: if isOwner(uid);
+        }
+
+        // Collections that carry a userId field and are owned by that user
+        // Read guards use existing resource.data; write guards validate request.resource.data
+        match /dietAssessments/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /mealPlans/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /dailyLogs/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /nutritionIntake/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /aiCoachMessages/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /studentMoodLogs/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /chatNutritionLogs/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /lowIncomeMeals/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        match /studentMealSelections/{id} {
+          allow read: if isOwner(resource.data.userId);
+          allow create, update: if isOwner(request.resource.data.userId);
+          allow delete: if isOwner(resource.data.userId);
+        }
+
+        // Public, read-only content
+        match /posts/{id} {
+          allow read: if true; // Adjust if you want private posts
+          allow write: if false; // Keep write-protected by default
+        }
+
+        match /challenges/{id} {
+          allow read: if true;
+          allow write: if false;
+        }
       }
-
-    // Subscription doc per uid
-    match /subscriptions/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-    }
-
-    // Per-user documents identified by a userId field
-    match /{coll}/{doc} {
-      allow read, write: if
-        coll in ['dietAssessments', 'mealPlans', 'dailyLogs', 'nutritionIntake', 'aiCoachMessages', 'studentMoodLogs', 'chatNutritionLogs', 'lowIncomeMeals'] &&
-        (
-          // reads validate against existing data
-          (existsAfter(doc) ? isOwner(getAfter(doc).data.userId) : isOwner(resource.data.userId)) ||
-          // writes validate against incoming data (for creates/updates)
-          isOwner(request.resource.data.userId)
-        );
-    }
-
-    // Public, read-only content
-    match /posts/{id} {
-      allow read: if true; // or add conditions like resource.data.isPublic == true
-      allow write: if false;
-    }
-
-    match /challenges/{id} {
-      allow read: if true;
-      allow write: if false;
     }
   }
 }

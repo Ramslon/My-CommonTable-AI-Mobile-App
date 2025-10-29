@@ -382,21 +382,23 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 					children: [
 						const Text('Plan on a Student Budget', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
 						const SizedBox(height: 12),
-						Row(
-							children: [
-								Expanded(
-									child: TextFormField(
+												LayoutBuilder(
+													builder: (context, constraints) {
+														final isNarrow = constraints.maxWidth < 360;
+														final fields = [
+															Expanded(
+																child: TextFormField(
 										controller: _budgetCtrl,
 										keyboardType: TextInputType.number,
 										decoration: const InputDecoration(
 											labelText: 'Budget per day (approx.)',
 											helperText: 'Enter a number in your local currency',
 										),
-									),
-								),
-								const SizedBox(width: 12),
-								Expanded(
-									child: DropdownButtonFormField<int>(
+																		),
+																	),
+																	const SizedBox(width: 12),
+																	Expanded(
+																		child: DropdownButtonFormField<int>(
 										initialValue: _mealsPerDay,
 										items: const [
 											DropdownMenuItem(value: 2, child: Text('2 meals / day')),
@@ -405,15 +407,24 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 										],
 										onChanged: (v) => setState(() => _mealsPerDay = v ?? _mealsPerDay),
 										decoration: const InputDecoration(labelText: 'Meals per day'),
-									),
-								),
-							],
-						),
+																		),
+																	),
+																];
+														if (isNarrow) {
+															return Column(
+																crossAxisAlignment: CrossAxisAlignment.start,
+																children: [fields[0], const SizedBox(height: 12), fields[2]],
+															);
+														}
+														return Row(children: fields);
+													},
+												),
 						const SizedBox(height: 12),
-						Row(
-							children: [
-								Expanded(
-									child: DropdownButtonFormField<String>(
+												LayoutBuilder(
+													builder: (context, constraints) {
+														final isNarrow = constraints.maxWidth < 360;
+														final field = Expanded(
+															child: DropdownButtonFormField<String>(
 										initialValue: _region,
 										items: const [
 											DropdownMenuItem(value: 'Default', child: Text('Region: Default')),
@@ -433,10 +444,14 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 											});
 										},
 										decoration: const InputDecoration(labelText: 'Region presets (local staples)'),
-									),
-								),
-							],
-						),
+																			),
+														);
+														if (isNarrow) {
+															return field;
+														}
+														return Row(children: [field]);
+													},
+												),
 						const SizedBox(height: 8),
 						SwitchListTile(
 							contentPadding: EdgeInsets.zero,
@@ -563,7 +578,8 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			if (Firebase.apps.isEmpty) {
 				await Firebase.initializeApp();
 			}
-			final firestore = FirebaseFirestore.instance;
+				final firestore = FirebaseFirestore.instance;
+				final uid = FirebaseAuth.instance.currentUser?.uid;
 
 			final allPools = <MealSuggestion>[..._generated, ..._mentalHealth];
 			final selectedMeals = allPools.where((m) => _selected.contains(m.name));
@@ -575,7 +591,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			}
 			final total = aggCosts.values.fold<double>(0, (s, c) => s + c);
 
-			final doc = {
+					final doc = {
 				'createdAt': DateTime.now().toIso8601String(),
 				'region': _region,
 				'budgetPerDay': double.tryParse(_budgetCtrl.text.trim()) ?? 3000.0,
@@ -587,6 +603,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				'ingredients': aggCosts.entries
 						.map((e) => {'name': e.key, 'cost': e.value})
 						.toList(),
+						if (uid != null) 'userId': uid,
 			};
 
 			await firestore.collection('studentMealSelections').add(doc);
