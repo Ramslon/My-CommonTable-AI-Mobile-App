@@ -50,10 +50,10 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
           _providerLabel = auto == ChatProvider.openai
               ? 'OpenAI'
               : auto == ChatProvider.gemini
-                  ? 'Gemini'
-                  : auto == ChatProvider.huggingFace
-                      ? 'Hugging Face'
-                      : 'Simulated';
+              ? 'Gemini'
+              : auto == ChatProvider.huggingFace
+              ? 'Hugging Face'
+              : 'Simulated';
       }
     });
   }
@@ -61,7 +61,8 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
   void _seedGreeting() {
     _messages.add(
       _UiMessage(
-        text: 'Hi! I\'m your AI nutrition coach. Ask about breakfast ideas, mood-supportive foods, protein targets, or budget-friendly student meals.',
+        text:
+            'Hi! I\'m your AI nutrition coach. Ask about breakfast ideas, mood-supportive foods, protein targets, or budget-friendly student meals.',
         isUser: false,
       ),
     );
@@ -85,16 +86,28 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
     try {
       // Build last few turns for context
       final turns = _messages
-          .map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text))
+          .map(
+            (m) => ChatTurn(
+              role: m.isUser ? 'user' : 'assistant',
+              content: m.text,
+            ),
+          )
           .toList();
       final reply = await _chat.reply(history: turns);
       final parsed = _parseBullets(reply.text);
       setState(() {
-        _messages.add(_UiMessage(text: parsed.base, isUser: false, tips: parsed.bullets));
+        _messages.add(
+          _UiMessage(text: parsed.base, isUser: false, tips: parsed.bullets),
+        );
       });
     } catch (e) {
       setState(() {
-        _messages.add(_UiMessage(text: 'Sorry, I couldn\'t respond right now. ($e)', isUser: false));
+        _messages.add(
+          _UiMessage(
+            text: 'Sorry, I couldn\'t respond right now. ($e)',
+            isUser: false,
+          ),
+        );
       });
     } finally {
       setState(() => _isTyping = false);
@@ -107,13 +120,16 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
       setState(() => _listening = false);
       return;
     }
-    final available = await _speech.initialize(onStatus: (s) {
-      if (s == 'notListening' && _listening) {
+    final available = await _speech.initialize(
+      onStatus: (s) {
+        if (s == 'notListening' && _listening) {
+          setState(() => _listening = false);
+        }
+      },
+      onError: (e) {
         setState(() => _listening = false);
-      }
-    }, onError: (e) {
-      setState(() => _listening = false);
-    });
+      },
+    );
     if (!available) return;
     setState(() => _listening = true);
     _speech.listen(
@@ -121,10 +137,15 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
         if (!mounted) return;
         setState(() {
           _controller.text = res.recognizedWords;
-          _controller.selection = TextSelection.fromPosition(TextPosition(offset: _controller.text.length));
+          _controller.selection = TextSelection.fromPosition(
+            TextPosition(offset: _controller.text.length),
+          );
         });
       },
-      listenOptions: stt.SpeechListenOptions(listenMode: stt.ListenMode.dictation, partialResults: true),
+      listenOptions: stt.SpeechListenOptions(
+        listenMode: stt.ListenMode.dictation,
+        partialResults: true,
+      ),
     );
   }
 
@@ -143,7 +164,9 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please sign in to save logs.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please sign in to save logs.')),
+        );
         return;
       }
 
@@ -156,10 +179,14 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
         'content': text,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved to nutrition log')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved to nutrition log')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     }
   }
 
@@ -175,7 +202,10 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
             padding: const EdgeInsets.only(right: 8.0),
             child: Chip(
               backgroundColor: Colors.white.withValues(alpha: 0.2),
-              label: Text('AI: $_providerLabel', style: const TextStyle(color: Colors.white)),
+              label: Text(
+                'AI: $_providerLabel',
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
           ),
         ],
@@ -189,28 +219,37 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final m = _messages[index];
-                final align = m.isUser ? Alignment.centerRight : Alignment.centerLeft;
-                final bg = m.isUser ? Colors.green.withValues(alpha: 0.18) : Colors.teal.withValues(alpha: 0.10);
+                final align = m.isUser
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft;
+                final bg = m.isUser
+                    ? Colors.green.withValues(alpha: 0.18)
+                    : Colors.teal.withValues(alpha: 0.10);
                 return Align(
                   alignment: align,
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 6),
                     padding: const EdgeInsets.all(12),
                     constraints: const BoxConstraints(maxWidth: 340),
-                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
+                    decoration: BoxDecoration(
+                      color: bg,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(m.text, style: const TextStyle(fontSize: 15)),
                         if (m.tips != null && m.tips!.isNotEmpty) ...[
                           const SizedBox(height: 8),
-                          ...m.tips!.map((t) => Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('• '),
-                                  Expanded(child: Text(t)),
-                                ],
-                              )),
+                          ...m.tips!.map(
+                            (t) => Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('• '),
+                                Expanded(child: Text(t)),
+                              ],
+                            ),
+                          ),
                         ],
                         if (!m.isUser) ...[
                           const SizedBox(height: 8),
@@ -230,7 +269,7 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
                               ),
                             ],
                           ),
-                        ]
+                        ],
                       ],
                     ),
                   ),
@@ -243,7 +282,10 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
           if (_isTyping)
             const Padding(
               padding: EdgeInsets.only(bottom: 8.0),
-              child: Text('AI is typing...', style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'AI is typing...',
+                style: TextStyle(color: Colors.grey),
+              ),
             ),
 
           // Input field
@@ -255,7 +297,10 @@ class _RealChatbotScreenState extends State<RealChatbotScreen> {
                 children: [
                   IconButton(
                     onPressed: _toggleListen,
-                    icon: Icon(_listening ? Icons.mic : Icons.mic_none, color: _listening ? Colors.red : Colors.grey.shade800),
+                    icon: Icon(
+                      _listening ? Icons.mic : Icons.mic_none,
+                      color: _listening ? Colors.red : Colors.grey.shade800,
+                    ),
                   ),
                   Expanded(
                     child: TextField(
@@ -308,5 +353,8 @@ _ParsedReply _parseBullets(String text) {
     }
   }
   final base = baseLines.join('\n').trim();
-  return _ParsedReply(base.isEmpty ? text : base, bullets.isEmpty ? null : bullets);
+  return _ParsedReply(
+    base.isEmpty ? text : base,
+    bullets.isEmpty ? null : bullets,
+  );
 }

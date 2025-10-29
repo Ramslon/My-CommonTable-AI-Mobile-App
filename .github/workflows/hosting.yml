@@ -1,0 +1,55 @@
+name: Firebase Hosting Deploy
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - "**/*.md"
+      - ".github/workflows/android-release.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    env:
+      FLUTTER_CHANNEL: 'stable'
+      FIREBASE_PROJECT: 'commonai-app'
+      # Requires repo secret FIREBASE_TOKEN (firebase login:ci)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter (${{ env.FLUTTER_CHANNEL }})
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+
+      - name: Restore Pub Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            **/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      - name: Fetch Dependencies
+        run: flutter pub get
+
+      - name: Build Flutter Web (release)
+        run: flutter build web --release
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          firebase --version
+          firebase deploy --only hosting --project ${{ env.FIREBASE_PROJECT }}

@@ -7,9 +7,18 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 enum BillingProvider { simulated, inAppPurchase }
 
 class PaymentsService {
-  static const _basicId = String.fromEnvironment('IAP_BASIC_ID', defaultValue: 'commontable.basic');
-  static const _plusId = String.fromEnvironment('IAP_PLUS_ID', defaultValue: 'commontable.plus');
-  static const _premiumId = String.fromEnvironment('IAP_PREMIUM_ID', defaultValue: 'commontable.premium');
+  static const _basicId = String.fromEnvironment(
+    'IAP_BASIC_ID',
+    defaultValue: 'commontable.basic',
+  );
+  static const _plusId = String.fromEnvironment(
+    'IAP_PLUS_ID',
+    defaultValue: 'commontable.plus',
+  );
+  static const _premiumId = String.fromEnvironment(
+    'IAP_PREMIUM_ID',
+    defaultValue: 'commontable.premium',
+  );
 
   final InAppPurchase _iap = InAppPurchase.instance;
   // Mutable: we select the provider at runtime; cannot be late final because
@@ -67,7 +76,8 @@ class PaymentsService {
 
   Future<void> _onPurchasesUpdated(List<PurchaseDetails> purchases) async {
     for (final p in purchases) {
-      if (p.status == PurchaseStatus.purchased || p.status == PurchaseStatus.restored) {
+      if (p.status == PurchaseStatus.purchased ||
+          p.status == PurchaseStatus.restored) {
         // Map productId to tier
         final tier = _mapProductToTier(p.productID);
         await _saveSubscription(tier);
@@ -87,11 +97,14 @@ class PaymentsService {
 
   Future<void> _saveSubscription(String tier) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    await FirebaseFirestore.instance.collection('subscriptions').doc(uid ?? 'anonymous').set({
-      'tier': tier,
-      'updatedAt': DateTime.now().toIso8601String(),
-      'provider': _provider.name,
-    }, SetOptions(merge: true));
+    await FirebaseFirestore.instance
+        .collection('subscriptions')
+        .doc(uid ?? 'anonymous')
+        .set({
+          'tier': tier,
+          'updatedAt': DateTime.now().toIso8601String(),
+          'provider': _provider.name,
+        }, SetOptions(merge: true));
   }
 
   void dispose() {
