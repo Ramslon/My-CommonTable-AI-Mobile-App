@@ -140,6 +140,10 @@ class _LoginFormState extends State<LoginForm> {
     setState(() => _loading = true);
     try {
       await AuthService().signInWithEmail(email: _emailCtrl.text.trim(), password: _passCtrl.text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed in successfully. Tap "Continue to app".')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Login failed: $e')));
@@ -152,6 +156,10 @@ class _LoginFormState extends State<LoginForm> {
     setState(() => _loading = true);
     try {
       await AuthService().signInWithGoogle();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed in with Google. Tap "Continue to app".')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google sign-in failed')));
@@ -254,6 +262,16 @@ class _RegisterFormState extends State<RegisterForm> {
     setState(() => _loading = true);
     try {
       await AuthService().registerWithEmail(email: _emailCtrl.text.trim(), password: _passCtrl.text);
+      if (!mounted) return;
+      // Inform user and switch to login. Also sign out because register may sign the user in.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account created successfully. Proceed to log in.')),
+      );
+      try {
+        await AuthService().signOut();
+      } catch (_) {}
+  final controller = DefaultTabController.of(context);
+  controller.animateTo(0);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration failed: $e')));
