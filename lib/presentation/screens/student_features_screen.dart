@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
 
@@ -59,11 +60,17 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			if (Firebase.apps.isEmpty) {
 				await Firebase.initializeApp();
 			}
-			final qs = await FirebaseFirestore.instance
-				.collection('studentMoodLogs')
-				.orderBy('createdAt', descending: true)
-				.limit(10)
-				.get();
+				final uid = FirebaseAuth.instance.currentUser?.uid;
+				if (uid == null) {
+					// No user: skip remote fetch
+					return;
+				}
+				Query<Map<String, dynamic>> q = FirebaseFirestore.instance
+						.collection('studentMoodLogs')
+						.where('userId', isEqualTo: uid)
+						.orderBy('createdAt', descending: true)
+						.limit(10);
+				final qs = await q.get();
 			final items = qs.docs.map((d) {
 				final data = d.data();
 				final created = DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now();
@@ -146,7 +153,8 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			if (Firebase.apps.isEmpty) {
 				await Firebase.initializeApp();
 			}
-			await FirebaseFirestore.instance.collection('studentMoodLogs').add({
+				final uid = FirebaseAuth.instance.currentUser?.uid;
+				await FirebaseFirestore.instance.collection('studentMoodLogs').add({
 				'createdAt': DateTime.now().toIso8601String(),
 				'moodKey': key,
 				'moodLabel': label,
@@ -156,6 +164,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				'useLocalStaples': _useLocalStaples,
 				'budgetPerDay': double.tryParse(_budgetCtrl.text.trim()),
 				'advice': advice,
+					'userId': uid,
 			});
 		} catch (_) {
 			// non-blocking

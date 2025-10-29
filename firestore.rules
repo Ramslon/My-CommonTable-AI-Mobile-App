@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // Users collection (app profile)
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Preferences keyed by uid
+    match /userPreferences/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+      // Publicly readable profiles; users can update their own
+      match /profiles/{uid} {
+        allow read: if true;
+        allow write: if signedIn() && request.auth.uid == uid;
+      }
+
+    // Subscription doc per uid
+    match /subscriptions/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Per-user documents identified by a userId field
+    match /{coll}/{doc} {
+      allow read, write: if
+        coll in ['dietAssessments', 'mealPlans', 'dailyLogs', 'nutritionIntake', 'aiCoachMessages', 'studentMoodLogs', 'chatNutritionLogs', 'lowIncomeMeals'] &&
+        (
+          // reads validate against existing data
+          (existsAfter(doc) ? isOwner(getAfter(doc).data.userId) : isOwner(resource.data.userId)) ||
+          // writes validate against incoming data (for creates/updates)
+          isOwner(request.resource.data.userId)
+        );
+    }
+
+    // Public, read-only content
+    match /posts/{id} {
+      allow read: if true; // or add conditions like resource.data.isPublic == true
+      allow write: if false;
+    }
+
+    match /challenges/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

@@ -69,20 +69,31 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 
 		void _subscribeChat({required String userId, required String sessionId, int limit = 200}) {
 		_chatSub?.cancel();
-			_chatSub = _history.watch(userId: userId, sessionId: sessionId, limit: limit).listen((items) {
-			if (!mounted) return;
-			setState(() {
-				_msgs
-					..clear()
-					..addAll(items.map((m) => _Msg(m.text, m.role == 'user')));
-					// Clear live typing overlay if persisted message arrives
-					if (_assistantTyping && _typingText != null && items.isNotEmpty) {
-						// If the last saved message matches or is non-empty, clear overlay
-						_typingText = null;
-						_assistantTyping = false;
-					}
-			});
-		});
+			_chatSub = _history
+				.watch(userId: userId, sessionId: sessionId, limit: limit)
+				.listen(
+					(items) {
+						if (!mounted) return;
+						setState(() {
+							_msgs
+								..clear()
+								..addAll(items.map((m) => _Msg(m.text, m.role == 'user')));
+								// Clear live typing overlay if persisted message arrives
+								if (_assistantTyping && _typingText != null && items.isNotEmpty) {
+									// If the last saved message matches or is non-empty, clear overlay
+									_typingText = null;
+									_assistantTyping = false;
+								}
+						});
+					},
+					onError: (e) {
+						// Avoid unhandled exceptions from permission-denied
+						if (!mounted) return;
+						ScaffoldMessenger.of(context).showSnackBar(
+							SnackBar(content: Text('Chat history unavailable: ${e is FirebaseException ? e.message ?? e.code : e.toString()}')),
+						);
+					},
+				);
 	}
 
   bool get _hasPlus => _tier == 'plus' || _tier == 'premium';

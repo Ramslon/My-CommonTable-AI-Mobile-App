@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
@@ -56,8 +57,15 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
       }
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        // Without a user, don't subscribe to global data
+        setState(() => _live = false);
+        return;
+      }
       final q = FirebaseFirestore.instance
           .collection('nutritionIntake')
+          .where('userId', isEqualTo: uid)
           .orderBy('createdAt', descending: true)
           .limit(1);
       _intakeSub?.cancel();
@@ -76,6 +84,13 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
           };
         });
         _scheduleAnalysisDebounced();
+      }, onError: (e) {
+        // If Firestore denies access, fall back silently to manual/demo data
+        if (!mounted) return;
+        setState(() => _live = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Live intake unavailable (${e is FirebaseException ? e.message ?? e.code : e.toString()})')),
+        );
       });
     } catch (_) {
       // ignore; stays in manual mode
@@ -98,14 +113,13 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp();
       }
-      final firestore = FirebaseFirestore.instance;
+  final firestore = FirebaseFirestore.instance;
+  final uid = FirebaseAuth.instance.currentUser?.uid;
 
       // Try to fetch the most recent daily intake
-      final snap = await firestore
-          .collection('nutritionIntake')
-          .orderBy('createdAt', descending: true)
-          .limit(1)
-          .get();
+    Query<Map<String, dynamic>> q = firestore.collection('nutritionIntake').orderBy('createdAt', descending: true).limit(1);
+    if (uid != null) q = q.where('userId', isEqualTo: uid);
+    final snap = await q.get();
 
       if (snap.docs.isNotEmpty) {
         final data = snap.docs.first.data();

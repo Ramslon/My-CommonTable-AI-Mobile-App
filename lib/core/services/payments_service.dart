@@ -12,24 +12,33 @@ class PaymentsService {
   static const _premiumId = String.fromEnvironment('IAP_PREMIUM_ID', defaultValue: 'commontable.premium');
 
   final InAppPurchase _iap = InAppPurchase.instance;
-  late final BillingProvider _provider;
+  // Mutable: we select the provider at runtime; cannot be late final because
+  // init() may switch between simulated and in_app_purchase more than once.
+  late BillingProvider _provider;
 
   StreamSubscription<List<PurchaseDetails>>? _sub;
   Set<String> get productIds => {_basicId, _plusId, _premiumId};
 
   PaymentsService() {
-    // If IAP is available at runtime, prefer it; otherwise use simulated.
-    _provider = BillingProvider.inAppPurchase; // Optimistically choose; will fallback on init.
+    // Start optimistic; init() will validate and adjust.
+    _provider = BillingProvider.inAppPurchase;
   }
 
   Future<BillingProvider> init() async {
+    // Avoid double-initializing the purchase stream
+    if (_sub != null) {
+      return _provider;
+    }
     final available = await _iap.isAvailable();
     if (!available) {
       _provider = BillingProvider.simulated;
       return _provider;
     }
-    _sub?.cancel();
-    _sub = _iap.purchaseStream.listen(_onPurchasesUpdated, onDone: () => _sub?.cancel(), onError: (_) {});
+    _sub = _iap.purchaseStream.listen(
+      _onPurchasesUpdated,
+      onDone: () => _sub?.cancel(),
+      onError: (_) {},
+    );
     _provider = BillingProvider.inAppPurchase;
     return _provider;
   }
