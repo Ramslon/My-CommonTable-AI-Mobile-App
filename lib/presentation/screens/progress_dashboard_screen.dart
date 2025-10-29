@@ -227,17 +227,24 @@ class _SimpleBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (int i = 0; i < values.length; i++)
-              _Bar(
-                heightFactor: values[i] / maxValue,
-                label: labels[i],
-                color: barColor,
-              ),
-          ],
+        // Allow horizontal scroll when space is tight to avoid overflow
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (int i = 0; i < values.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _Bar(
+                    heightFactor: maxValue == 0 ? 0 : (values[i] / maxValue),
+                    label: labels[i],
+                    color: barColor,
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );
@@ -331,6 +338,7 @@ class _StatCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               decoration: BoxDecoration(
@@ -341,13 +349,28 @@ class _StatCard extends StatelessWidget {
               child: Icon(icon, color: color),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(color: Colors.black54)),
-                const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
+            // Make the text area flexible so it wraps within tight widths
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(color: Colors.black54),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                  ),
+                ],
+              ),
             )
           ],
         ),
