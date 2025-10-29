@@ -2,106 +2,100 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    rules_version = '2';
-    service cloud.firestore {
-      match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-        function signedIn() {
-          return request.auth != null;
-        }
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
 
-        function isOwner(userId) {
-          return signedIn() && request.auth.uid == userId;
-        }
+    // Users collection (app profile)
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
 
-        // Users collection (app profile)
-        match /users/{uid} {
-          allow read, write: if isOwner(uid);
-        }
+    // Preferences keyed by uid
+    match /userPreferences/{uid} {
+      allow read, write: if isOwner(uid);
+    }
 
-        // Preferences keyed by uid
-        match /userPreferences/{uid} {
-          allow read, write: if isOwner(uid);
-        }
+    // Subscription doc per uid
+    match /subscriptions/{uid} {
+      allow read, write: if isOwner(uid);
+    }
 
-        // Subscription doc per uid
-        match /subscriptions/{uid} {
-          allow read, write: if isOwner(uid);
-        }
+    // Profiles: public read, owner write
+    match /profiles/{uid} {
+      allow read: if true;
+      allow write: if isOwner(uid);
+    }
 
-        // Profiles: public read, owner write
-        match /profiles/{uid} {
-          allow read: if true;
-          allow write: if isOwner(uid);
-        }
+    // Collections that carry a userId field and are owned by that user
+    // Read guards use existing resource.data; write guards validate request.resource.data
+    match /dietAssessments/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        // Collections that carry a userId field and are owned by that user
-        // Read guards use existing resource.data; write guards validate request.resource.data
-        match /dietAssessments/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /mealPlans/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /mealPlans/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /dailyLogs/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /dailyLogs/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /nutritionIntake/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /nutritionIntake/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /aiCoachMessages/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /aiCoachMessages/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /studentMoodLogs/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /studentMoodLogs/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /chatNutritionLogs/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /chatNutritionLogs/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /lowIncomeMeals/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /lowIncomeMeals/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    match /studentMealSelections/{id} {
+      allow read: if isOwner(resource.data.userId);
+      allow create, update: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
 
-        match /studentMealSelections/{id} {
-          allow read: if isOwner(resource.data.userId);
-          allow create, update: if isOwner(request.resource.data.userId);
-          allow delete: if isOwner(resource.data.userId);
-        }
+    // Public, read-only content
+    match /posts/{id} {
+      allow read: if true; // Adjust if you want private posts
+      allow write: if false; // Keep write-protected by default
+    }
 
-        // Public, read-only content
-        match /posts/{id} {
-          allow read: if true; // Adjust if you want private posts
-          allow write: if false; // Keep write-protected by default
-        }
-
-        match /challenges/{id} {
-          allow read: if true;
-          allow write: if false;
-        }
-      }
+    match /challenges/{id} {
+      allow read: if true;
+      allow write: if false;
     }
   }
 }
