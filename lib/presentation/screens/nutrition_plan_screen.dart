@@ -400,12 +400,15 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
-                Icon(Icons.health_and_safety_outlined, color: Colors.teal),
-                SizedBox(width: 8),
-                Text(
-                  'AI Dietary Assessment & Risk Analyzer',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              children: [
+                const Icon(Icons.health_and_safety_outlined, color: Colors.teal),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'AI Dietary Assessment & Risk Analyzer',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    softWrap: true,
+                  ),
                 ),
               ],
             ),
