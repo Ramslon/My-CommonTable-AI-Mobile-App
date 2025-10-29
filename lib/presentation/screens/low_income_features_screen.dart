@@ -277,26 +277,37 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 				children: [
 					const Text('Daily Budget', style: TextStyle(fontWeight: FontWeight.w600)),
 					const SizedBox(height: 8),
-					Row(
-						children: [
-							Expanded(
-								child: TextField(
-									controller: _budgetCtrl,
-									keyboardType: const TextInputType.numberWithOptions(decimal: true),
-									decoration: const InputDecoration(
-										hintText: 'e.g., 5.00',
-										border: OutlineInputBorder(),
+					LayoutBuilder(
+						builder: (context, constraints) {
+							// Ensure the row never overflows by reserving space for the button.
+							const double buttonWidth = 140; // enough for label and icon
+							final double tfWidth = (constraints.maxWidth - buttonWidth - 12).clamp(160, constraints.maxWidth);
+							return Row(
+								children: [
+									SizedBox(
+										width: tfWidth,
+										child: TextField(
+											controller: _budgetCtrl,
+											keyboardType: const TextInputType.numberWithOptions(decimal: true),
+											decoration: const InputDecoration(
+												hintText: 'e.g., 5.00',
+												border: OutlineInputBorder(),
+											),
+										),
 									),
-								),
-							),
-							const SizedBox(width: 12),
-							ElevatedButton.icon(
-								onPressed: _recommending ? null : _recommendMeals,
-								icon: const Icon(Icons.search),
-								label: const Text('Find Meals'),
-								style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-							),
-						],
+									const SizedBox(width: 12),
+									SizedBox(
+										width: buttonWidth,
+										child: ElevatedButton.icon(
+											onPressed: _recommending ? null : _recommendMeals,
+											icon: const Icon(Icons.search),
+											label: const Text('Find Meals', overflow: TextOverflow.ellipsis),
+											style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+										),
+									),
+								],
+							);
+						},
 					),
 					const SizedBox(height: 12),
 					if (_meals.isEmpty)
@@ -332,11 +343,20 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 											children: meal.ingredients.map((e) => Chip(label: Text(e))).toList(),
 										),
 										const SizedBox(height: 8),
-										Row(
+										Wrap(
+											spacing: 12,
+											runSpacing: 8,
 											children: [
-												OutlinedButton.icon(onPressed: () => _saveMeal(meal), icon: const Icon(Icons.bookmark_add_outlined), label: const Text('Save this meal')),
-												const SizedBox(width: 12),
-												ElevatedButton.icon(onPressed: () => _showShoppingList(meal), icon: const Icon(Icons.list_alt), label: const Text('Get shopping list')),
+												OutlinedButton.icon(
+													onPressed: () => _saveMeal(meal),
+													icon: const Icon(Icons.bookmark_add_outlined),
+													label: const Text('Save this meal', overflow: TextOverflow.ellipsis),
+												),
+												ElevatedButton.icon(
+													onPressed: () => _showShoppingList(meal),
+													icon: const Icon(Icons.list_alt),
+													label: const Text('Get shopping list', overflow: TextOverflow.ellipsis),
+												),
 											],
 										)
 									],

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -18,6 +19,9 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
   bool _loading = false;
   bool _loadingFirestore = false;
   String? _aiSummary;
+  bool _live = true; // live analysis toggle
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _intakeSub;
+  Timer? _debounce;
 
   // Daily intake vs recommended targets
   Map<String, double> _intake = {
@@ -44,6 +48,48 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
   void initState() {
     super.initState();
     _loadFromFirestore();
+    _subscribeIntakeRealtime();
+  }
+
+  void _subscribeIntakeRealtime() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      final q = FirebaseFirestore.instance
+          .collection('nutritionIntake')
+          .orderBy('createdAt', descending: true)
+          .limit(1);
+      _intakeSub?.cancel();
+      _intakeSub = q.snapshots().listen((snap) {
+        if (!mounted) return;
+        if (snap.docs.isEmpty) return;
+        final data = snap.docs.first.data();
+        setState(() {
+          _intake = {
+            'Calories (kcal)': (data['calories'] ?? _intake['Calories (kcal)']).toDouble(),
+            'Protein (g)': (data['protein'] ?? _intake['Protein (g)']).toDouble(),
+            'Carbs (g)': (data['carbs'] ?? _intake['Carbs (g)']).toDouble(),
+            'Fat (g)': (data['fat'] ?? _intake['Fat (g)']).toDouble(),
+            'Fiber (g)': (data['fiber'] ?? _intake['Fiber (g)']).toDouble(),
+            'Sodium (mg)': (data['sodium'] ?? _intake['Sodium (mg)']).toDouble(),
+          };
+        });
+        _scheduleAnalysisDebounced();
+      });
+    } catch (_) {
+      // ignore; stays in manual mode
+    }
+  }
+
+  void _scheduleAnalysisDebounced() {
+    if (!_live) return;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      if (_loading) return; // avoid piling requests
+      _analyzeWithAI();
+    });
   }
 
   Future<void> _loadFromFirestore() async {
@@ -133,6 +179,13 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
   }
 
   @override
+  void dispose() {
+    _intakeSub?.cancel();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -140,6 +193,11 @@ class _NutritionAnalysisScreenState extends State<NutritionAnalysisScreen> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            onPressed: () => setState(() => _live = !_live),
+            tooltip: _live ? 'Live analysis: On' : 'Live analysis: Off',
+            icon: Icon(_live ? Icons.bolt : Icons.bolt_outlined, color: _live ? Colors.yellowAccent : Colors.white),
+          ),
           IconButton(
             onPressed: _loadingFirestore ? null : _loadFromFirestore,
             tooltip: 'Load from Firestore',
