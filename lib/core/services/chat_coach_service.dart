@@ -81,6 +81,57 @@ class ChatCoachService {
     }
   }
 
+  /// Streaming version: yields partial text chunks when supported (OpenAI),
+  /// otherwise emits a single final chunk.
+  Stream<ChatDelta> replyStream({
+    required List<ChatTurn> history,
+    ChatProvider? provider,
+    ChatTopic topic = ChatTopic.generalHealth,
+  }) async* {
+    // Honor offline mode by emitting simulated text as one chunk
+    try {
+      final p = await PrivacySettingsService().load();
+      if (p.offlineMode) {
+        yield ChatDelta(text: _simulate(history, topic), done: true, provider: ChatProvider.simulated);
+        return;
+      }
+    } catch (_) {}
+
+    final chosen = provider ?? autoProvider;
+    final themed = _injectPrimer(history, topic);
+    if (chosen == ChatProvider.openai) {
+      try {
+        yield* _openAIStream(themed, topic: topic);
+        return;
+      } catch (e) {
+        yield ChatDelta(text: _simulate(history, topic), done: true, provider: ChatProvider.simulated, note: 'OpenAI stream fallback: $e');
+        return;
+      }
+    }
+    // Non-streaming providers: emit a single chunk
+    try {
+      String txt;
+      switch (chosen) {
+        case ChatProvider.gemini:
+          txt = await _callGemini(themed);
+          break;
+        case ChatProvider.huggingFace:
+          txt = await _callHF(themed, topic: topic);
+          break;
+        case ChatProvider.simulated:
+          txt = _simulate(history, topic);
+          break;
+        case ChatProvider.openai:
+          // handled above
+          txt = _simulate(history, topic);
+          break;
+      }
+      yield ChatDelta(text: txt, done: true, provider: chosen);
+    } catch (e) {
+      yield ChatDelta(text: _simulate(history, topic), done: true, provider: ChatProvider.simulated, note: 'fallback: $e');
+    }
+  }
+
   List<ChatTurn> _injectPrimer(List<ChatTurn> history, ChatTopic topic) {
     final primer = _topicPrimer(topic);
     if (primer == null) return history;
@@ -185,6 +236,71 @@ class ChatCoachService {
     throw Exception('OpenAI HTTP ${resp.statusCode}: ${resp.body}');
   }
 
+  /// OpenAI streaming using SSE over chat.completions
+  Stream<ChatDelta> _openAIStream(List<ChatTurn> history, {required ChatTopic topic}) async* {
+    if (_openaiKey.isEmpty) {
+      throw Exception('Missing OPENAI_API_KEY (or OPENAI_KEY)');
+    }
+    final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
+    final headers = {
+      'Authorization': 'Bearer $_openaiKey',
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
+    };
+    final messages = history
+        .map((h) => {
+              'role': h.role,
+              'content': h.content,
+            })
+        .toList();
+    messages.insert(0, {
+      'role': 'system',
+      'content': _topicPrimer(topic) ?? 'You are a supportive student nutrition coach. Be kind, concise, and actionable.'
+    });
+
+    final body = jsonEncode({
+      'model': _openaiModel,
+      'messages': messages,
+      'temperature': 0.4,
+      'max_tokens': 200,
+      'stream': true,
+    });
+
+    final req = http.Request('POST', uri);
+    req.headers.addAll(headers);
+    req.body = body;
+    final resp = await req.send().timeout(const Duration(seconds: 30));
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      final err = await resp.stream.bytesToString();
+      throw Exception('OpenAI HTTP ${resp.statusCode}: $err');
+    }
+    final stream = resp.stream.transform(utf8.decoder).transform(const LineSplitter());
+    String buffer = '';
+    await for (final line in stream) {
+      if (line.isEmpty) continue;
+      if (line.startsWith('data: ')) {
+        final data = line.substring(6).trim();
+        if (data == '[DONE]') {
+          yield ChatDelta(text: buffer, done: true, provider: ChatProvider.openai);
+          break;
+        }
+        try {
+          final map = jsonDecode(data) as Map<String, dynamic>;
+          final choices = (map['choices'] as List?) ?? const [];
+          if (choices.isEmpty) continue;
+          final delta = choices.first['delta'];
+          final content = (delta?['content'] as String?) ?? '';
+          if (content.isNotEmpty) {
+            buffer += content;
+            yield ChatDelta(text: buffer, done: false, provider: ChatProvider.openai);
+          }
+        } catch (_) {
+          // ignore malformed chunk
+        }
+      }
+    }
+  }
+
   Future<String> _callHF(List<ChatTurn> history, {required ChatTopic topic}) async {
     if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
     final uri = Uri.parse('https://api-inference.huggingface.co/models/$_hfModel');
@@ -228,6 +344,14 @@ class ChatReply {
 }
 
 enum ChatProvider { simulated, gemini, openai, huggingFace }
+
+class ChatDelta {
+  final String text;
+  final bool done;
+  final ChatProvider provider;
+  final String? note;
+  ChatDelta({required this.text, required this.done, required this.provider, this.note});
+}
 
 extension _LastOrNull<T> on List<T> {
   T? get lastOrNull => isEmpty ? null : this[length - 1];

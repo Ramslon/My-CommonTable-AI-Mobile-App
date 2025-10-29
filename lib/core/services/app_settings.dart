@@ -17,6 +17,8 @@ class AppSettings {
     switch (val) {
       case 'gemini':
         return InsightsProvider.gemini;
+      case 'openai':
+        return InsightsProvider.openai;
       case 'huggingFace':
         return InsightsProvider.huggingFace;
       case 'simulated':
@@ -29,6 +31,7 @@ class AppSettings {
     final prefs = await SharedPreferences.getInstance();
     final val = switch (provider) {
       InsightsProvider.gemini => 'gemini',
+      InsightsProvider.openai => 'openai',
       InsightsProvider.huggingFace => 'huggingFace',
       InsightsProvider.simulated => 'simulated',
     };

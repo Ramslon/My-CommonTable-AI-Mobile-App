@@ -237,6 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return switch (p) {
       InsightsProvider.simulated => 'Simulated (offline)',
       InsightsProvider.gemini => 'Gemini (requires API key)',
+      InsightsProvider.openai => 'OpenAI (requires API key)',
       InsightsProvider.huggingFace => 'Hugging Face (requires API key)',
     };
   }
@@ -273,6 +274,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Requires GEMINI_API_KEY at build/run',
                     selected: temp == InsightsProvider.gemini,
                     onTap: () => setModal(() => temp = InsightsProvider.gemini),
+                  ),
+                  _ProviderOption(
+                    title: 'OpenAI',
+                    subtitle: 'Requires OPENAI_API_KEY at build/run',
+                    selected: temp == InsightsProvider.openai,
+                    onTap: () => setModal(() => temp = InsightsProvider.openai),
                   ),
                   _ProviderOption(
                     title: 'Hugging Face Inference API',

@@ -41,6 +41,10 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
   Timer? _metricTicker;
   String? _uid; // signed-in user id for cross-device chat persistence
   StreamSubscription<List<ChatMessage>>? _chatSub;
+	String? _typingText; // live streaming assistant text (not yet saved)
+	bool _assistantTyping = false;
+
+	String get _sessionId => 'topic:${_topic.name}';
 
 	@override
 	void initState() {
@@ -55,22 +59,28 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
     _currency = await AppSettings().getCurrencyCode();
     _tier = await AppSettings().getSubscriptionTier();
 		_uid = FirebaseAuth.instance.currentUser?.uid;
-		if (_uid != null) {
-			_subscribeChat(userId: _uid!);
+			if (_uid != null) {
+				_subscribeChat(userId: _uid!, sessionId: _sessionId);
 		}
 		await _loadLatestAssessment();
 		await _syncWearablesOrSimulate();
     _startRealtimeMetrics();
 	}
 
-	void _subscribeChat({required String userId, int limit = 200}) {
+		void _subscribeChat({required String userId, required String sessionId, int limit = 200}) {
 		_chatSub?.cancel();
-		_chatSub = _history.watch(userId: userId, limit: limit).listen((items) {
+			_chatSub = _history.watch(userId: userId, sessionId: sessionId, limit: limit).listen((items) {
 			if (!mounted) return;
 			setState(() {
 				_msgs
 					..clear()
 					..addAll(items.map((m) => _Msg(m.text, m.role == 'user')));
+					// Clear live typing overlay if persisted message arrives
+					if (_assistantTyping && _typingText != null && items.isNotEmpty) {
+						// If the last saved message matches or is non-empty, clear overlay
+						_typingText = null;
+						_assistantTyping = false;
+					}
 			});
 		});
 	}
@@ -239,19 +249,56 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 
 		// Signed-in: write to Firestore and rely on stream to render
 		try {
-			await _history.addMessage(userId: uid, role: 'user', text: trimmed, topic: _topic.name);
-			// Build context including the just-sent user message for immediate LLM context
-			final turns = [
-				..._msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)),
-				ChatTurn(role: 'user', content: trimmed),
-			];
-			final reply = await _chat.reply(history: turns, topic: _topic);
-			await _history.addMessage(userId: uid, role: 'assistant', text: reply.text, topic: _topic.name);
+				await _history.addMessage(userId: uid, role: 'user', text: trimmed, topic: _topic.name, sessionId: _sessionId);
+				// Build context including the just-sent user message for immediate LLM context
+				final turns = [
+					..._msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)),
+					ChatTurn(role: 'user', content: trimmed),
+				];
+				setState(() { _assistantTyping = true; _typingText = ''; });
+				await for (final delta in _chat.replyStream(history: turns, topic: _topic)) {
+					if (!mounted) break;
+					setState(() { _typingText = delta.text; _assistantTyping = !delta.done; });
+					if (delta.done) break;
+				}
+				final finalText = _typingText ?? '';
+				if (finalText.trim().isNotEmpty) {
+					await _history.addMessage(userId: uid, role: 'assistant', text: finalText.trim(), topic: _topic.name, sessionId: _sessionId);
+				}
+				if (mounted) setState(() { _typingText = null; _assistantTyping = false; });
 		} catch (e) {
 			if (!mounted) return;
 			ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chat failed: $e')));
 		}
 	}
+
+		Future<void> _clearChat() async {
+			final uid = _uid;
+			if (uid == null) {
+				ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sign in to clear chat history.')));
+				return;
+			}
+			final ok = await showDialog<bool>(
+				context: context,
+				builder: (ctx) => AlertDialog(
+					title: const Text('Clear chat history?'),
+					content: const Text('This will delete all messages in this conversation.'),
+					actions: [
+						TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+						TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Clear')),
+					],
+				),
+			);
+			if (ok != true) return;
+			try {
+				final n = await _history.clear(userId: uid, sessionId: _sessionId);
+				if (!mounted) return;
+				ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted $n messages.')));
+			} catch (e) {
+				if (!mounted) return;
+				ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to clear: $e')));
+			}
+		}
 
   @override
   void dispose() {
@@ -346,7 +393,17 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 									),
 
 						const SizedBox(height: 20),
-						const Text('AI Coach', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+									Row(
+										mainAxisAlignment: MainAxisAlignment.spaceBetween,
+										children: [
+											const Text('AI Coach', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+											IconButton(
+												tooltip: 'Clear chat history',
+												onPressed: _clearChat,
+												icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+											),
+										],
+									),
 						const SizedBox(height: 8),
 												Wrap(
 													spacing: 12,
@@ -368,23 +425,32 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 												),
 
 	            // Topic chips
-	            Wrap(
+							Wrap(
 	              spacing: 8,
 	              children: [
 	                ChoiceChip(
 	                  label: const Text('Motivation'),
 	                  selected: _topic == ChatTopic.motivation,
-	                  onSelected: (b) => setState(() => _topic = ChatTopic.motivation),
+										onSelected: (b) {
+											setState(() => _topic = ChatTopic.motivation);
+											if (_uid != null) _subscribeChat(userId: _uid!, sessionId: _sessionId);
+										},
 	                ),
 	                ChoiceChip(
 	                  label: const Text('Diet advice'),
 	                  selected: _topic == ChatTopic.dietAdvice,
-	                  onSelected: (b) => setState(() => _topic = ChatTopic.dietAdvice),
+										onSelected: (b) {
+											setState(() => _topic = ChatTopic.dietAdvice);
+											if (_uid != null) _subscribeChat(userId: _uid!, sessionId: _sessionId);
+										},
 	                ),
 	                ChoiceChip(
 	                  label: const Text('Health Q&A'),
 	                  selected: _topic == ChatTopic.generalHealth,
-	                  onSelected: (b) => setState(() => _topic = ChatTopic.generalHealth),
+										onSelected: (b) {
+											setState(() => _topic = ChatTopic.generalHealth);
+											if (_uid != null) _subscribeChat(userId: _uid!, sessionId: _sessionId);
+										},
 	                ),
 	              ],
 	            ),
@@ -414,7 +480,26 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 											},
 										),
 									),
-									Row(
+													if (_assistantTyping || (_typingText != null && _typingText!.isNotEmpty))
+														Padding(
+															padding: const EdgeInsets.symmetric(vertical: 6),
+															child: Align(
+																alignment: Alignment.centerLeft,
+																child: Container(
+																	padding: const EdgeInsets.all(10),
+																	decoration: BoxDecoration(color: Colors.teal.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
+																	child: Row(
+																		mainAxisSize: MainAxisSize.min,
+																		children: [
+																			const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+																			const SizedBox(width: 8),
+																			Flexible(child: Text(_typingText?.isNotEmpty == true ? _typingText! : 'Assistant is typing…')),
+																		],
+																	),
+																),
+															),
+														),
+													Row(
 										children: [
 											Expanded(
 												child: TextField(

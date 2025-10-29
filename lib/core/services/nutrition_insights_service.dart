@@ -9,7 +9,7 @@ import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 /// In production, wire this to Gemini or Hugging Face by sending the
 /// current intake map and optionally the recommended targets to your model.
 /// Keep prompts short and specific, and return 3-5 bullet guidance points.
-enum InsightsProvider { simulated, gemini, huggingFace }
+enum InsightsProvider { simulated, gemini, openai, huggingFace }
 
 class NutritionInsightsService {
   // Load from .env first; fallback to --dart-define
@@ -25,6 +25,12 @@ class NutritionInsightsService {
         return const String.fromEnvironment('HF_API_KEY');
       case 'HF_MODEL':
         return const String.fromEnvironment('HF_MODEL', defaultValue: 'Qwen/Qwen2.5-3B-Instruct');
+      case 'OPENAI_API_KEY':
+        return const String.fromEnvironment('OPENAI_API_KEY');
+      case 'OPENAI_KEY':
+        return const String.fromEnvironment('OPENAI_KEY');
+      case 'OPENAI_MODEL':
+        return const String.fromEnvironment('OPENAI_MODEL', defaultValue: 'gpt-4o-mini');
       default:
         return def;
     }
@@ -34,9 +40,17 @@ class NutritionInsightsService {
   static String get _geminiModel => _env('GEMINI_MODEL', def: 'gemini-1.5-flash');
   static String get _hfKey => _env('HF_API_KEY');
   static String get _hfModel => _env('HF_MODEL', def: 'Qwen/Qwen2.5-3B-Instruct');
+  static String get _openaiKey => _env('OPENAI_API_KEY').isNotEmpty ? _env('OPENAI_API_KEY') : _env('OPENAI_KEY');
+  static String get _openaiModel => _env('OPENAI_MODEL', def: 'gpt-4o-mini');
 
   InsightsProvider get _autoProvider =>
-      _geminiKey.isNotEmpty ? InsightsProvider.gemini : _hfKey.isNotEmpty ? InsightsProvider.huggingFace : InsightsProvider.simulated;
+      _geminiKey.isNotEmpty
+          ? InsightsProvider.gemini
+          : _openaiKey.isNotEmpty
+              ? InsightsProvider.openai
+              : _hfKey.isNotEmpty
+                  ? InsightsProvider.huggingFace
+                  : InsightsProvider.simulated;
 
   Future<String> generateInsights({required Map<String, double> intake, InsightsProvider? provider}) async {
     // Respect offline mode: force simulated output
@@ -51,6 +65,13 @@ class NutritionInsightsService {
           return await _callGemini(intake);
         } catch (e) {
           return 'AI insights (Gemini) unavailable: $e\n\n${_simulatedSummary(intake)}';
+        }
+      case InsightsProvider.openai:
+        try {
+          final prompt = _buildPrompt(intake);
+          return await _callOpenAIWithPrompt(prompt);
+        } catch (e) {
+          return 'AI insights (OpenAI) unavailable: $e\n\n${_simulatedSummary(intake)}';
         }
       case InsightsProvider.huggingFace:
         try {
@@ -99,6 +120,12 @@ class NutritionInsightsService {
         } catch (e) {
           return 'AI wellness report (Gemini) unavailable: $e\n\n${_simulatedWellness(prompt)}';
         }
+      case InsightsProvider.openai:
+        try {
+          return await _callOpenAIWithPrompt(prompt);
+        } catch (e) {
+          return 'AI wellness report (OpenAI) unavailable: $e\n\n${_simulatedWellness(prompt)}';
+        }
       case InsightsProvider.huggingFace:
         try {
           return await _callHFWithPrompt(prompt);
@@ -138,6 +165,19 @@ class NutritionInsightsService {
           );
         } catch (e) {
           return 'AI mood support (Gemini) unavailable: $e\n\n${_simulatedMood(mood, region, vegetarianOnly, useLocalStaples, budgetPerDay)}';
+        }
+      case InsightsProvider.openai:
+        try {
+          final prompt = _buildMoodPrompt(
+            mood: mood,
+            region: region,
+            vegetarianOnly: vegetarianOnly,
+            useLocalStaples: useLocalStaples,
+            budgetPerDay: budgetPerDay,
+          );
+          return await _callOpenAIWithPrompt(prompt);
+        } catch (e) {
+          return 'AI mood support (OpenAI) unavailable: $e\n\n${_simulatedMood(mood, region, vegetarianOnly, useLocalStaples, budgetPerDay)}';
         }
       case InsightsProvider.huggingFace:
         try {
@@ -306,6 +346,39 @@ class NutritionInsightsService {
     } else {
       throw Exception('HF HTTP ${resp.statusCode}: ${resp.body}');
     }
+  }
+
+  Future<String> _callOpenAIWithPrompt(String prompt) async {
+    if (_openaiKey.isEmpty) throw Exception('Missing OPENAI_API_KEY (or OPENAI_KEY)');
+    final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
+    final headers = {
+      'Authorization': 'Bearer $_openaiKey',
+      'Content-Type': 'application/json',
+    };
+    final body = jsonEncode({
+      'model': _openaiModel,
+      'messages': [
+        {
+          'role': 'system',
+          'content': 'You are a nutrition and wellness coach. Keep answers concise, safe, and practical.'
+        },
+        {'role': 'user', 'content': prompt},
+      ],
+      'temperature': 0.4,
+      'max_tokens': 220,
+    });
+    final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 25));
+    if (resp.statusCode >= 200 && resp.statusCode < 300) {
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final choices = (data['choices'] as List?) ?? const [];
+      if (choices.isNotEmpty) {
+        final msg = choices.first['message'];
+        final txt = (msg?['content'] as String?)?.trim();
+        if (txt != null && txt.isNotEmpty) return txt;
+      }
+      throw Exception('No text in OpenAI response');
+    }
+    throw Exception('OpenAI HTTP ${resp.statusCode}: ${resp.body}');
   }
 
   String _buildWellnessPrompt({
