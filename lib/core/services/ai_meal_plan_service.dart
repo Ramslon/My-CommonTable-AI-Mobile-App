@@ -1,6 +1,10 @@
 import 'dart:math';
 
 import 'package:commontable_ai_app/core/models/meal_plan.dart';
+import 'package:commontable_ai_app/core/models/user_preferences.dart' as up;
+import 'package:commontable_ai_app/core/services/supabase_service.dart';
+import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
+import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 
 class AiMealPlanService {
   final _rand = Random(42);
@@ -36,6 +40,169 @@ class AiMealPlanService {
       mealsPerDay: mealsPerDay,
       days: days,
     );
+  }
+
+  /// Attempts to personalize using Supabase recipes and UserPreferences, with
+  /// graceful fallback to the local generator.
+  Future<MealPlan> generatePlanPersonalized({
+    required int targetCalories,
+    required MealPlanTimeframe timeframe,
+    required DietaryPreference preference,
+    required up.UserPreferences? preferences,
+    int mealsPerDay = 3,
+  }) async {
+    // Try LLM-guided generation first (Gemini), unless offline mode
+    try {
+      final p = await PrivacySettingsService().load();
+      if (!p.offlineMode) {
+        return await _generatePlanLLMGuided(
+          targetCalories: targetCalories,
+          timeframe: timeframe,
+          preference: preference,
+          preferences: preferences,
+          mealsPerDay: mealsPerDay,
+        );
+      }
+    } catch (_) {
+      // ignore and fallback
+    }
+
+    final daysCount = timeframe == MealPlanTimeframe.daily ? 1 : 7;
+    final splits = _calorieSplits(mealsPerDay);
+    final localDb = _foodDb(preference);
+    final remoteDb = SupabaseService.isConfigured ? await _foodDbFromSupabase() : const <MealItem>[];
+
+    // Merge and filter by allergies/dislikes if provided
+    List<MealItem> db = [...remoteDb, ...localDb];
+    if (preferences != null) {
+      final allergies = preferences.allergies.map((e) => e.toLowerCase()).toList();
+      final dislikes = preferences.dislikes.map((e) => e.toLowerCase()).toList();
+      db = db.where((m) {
+        final n = m.name.toLowerCase();
+        final hasAllergy = allergies.any((a) => a.isNotEmpty && n.contains(a));
+        final hasDislike = dislikes.any((d) => d.isNotEmpty && n.contains(d));
+        return !hasAllergy && !hasDislike;
+      }).toList(growable: false);
+      if (db.isEmpty) db = localDb; // safety
+    }
+
+    List<DayPlan> days = List.generate(daysCount, (dayIdx) {
+      final label = timeframe == MealPlanTimeframe.daily ? 'Today' : _weekdayLabel(dayIdx);
+      final meals = <Meal>[];
+      for (int i = 0; i < mealsPerDay; i++) {
+        final mealTitle = _mealTitle(i, mealsPerDay);
+        final mealTarget = (targetCalories * splits[i]).round();
+        meals.add(_buildMeal(mealTitle, mealTarget, db));
+      }
+      return DayPlan(label: label, meals: meals);
+    });
+
+    return MealPlan(
+      timeframe: timeframe,
+      targetCalories: targetCalories,
+      preference: preference,
+      mealsPerDay: mealsPerDay,
+      days: days,
+    );
+  }
+
+  Future<MealPlan> _generatePlanLLMGuided({
+    required int targetCalories,
+    required MealPlanTimeframe timeframe,
+    required DietaryPreference preference,
+    required up.UserPreferences? preferences,
+    int mealsPerDay = 3,
+  }) async {
+    // Ask Gemini for supportive foods/snacks; parse bullets into item hints
+    final svc = NutritionInsightsService();
+    final vegetarianOnly = preference == DietaryPreference.vegan || preference == DietaryPreference.vegetarian;
+    final text = await svc.generateMoodSupport(
+      mood: 'balanced energy and focus',
+      region: preferences?.region,
+      vegetarianOnly: vegetarianOnly,
+      useLocalStaples: true,
+      budgetPerDay: preferences?.dailyBudget,
+      provider: InsightsProvider.gemini,
+    );
+    final hints = _extractBullets(text);
+    if (hints.isEmpty) {
+      throw Exception('No LLM hints');
+    }
+
+    final daysCount = timeframe == MealPlanTimeframe.daily ? 1 : 7;
+    final splits = _calorieSplits(mealsPerDay);
+    var db = [..._foodDb(preference), ...await _foodDbFromSupabase()];
+    if (preferences != null) {
+      final allergies = preferences.allergies.map((e) => e.toLowerCase()).toList();
+      final dislikes = preferences.dislikes.map((e) => e.toLowerCase()).toList();
+      db = db.where((m) {
+        final n = m.name.toLowerCase();
+        final hasAllergy = allergies.any((a) => a.isNotEmpty && n.contains(a));
+        final hasDislike = dislikes.any((d) => d.isNotEmpty && n.contains(d));
+        return !hasAllergy && !hasDislike;
+      }).toList(growable: false);
+      if (db.isEmpty) db = _foodDb(preference);
+    }
+
+    List<DayPlan> days = List.generate(daysCount, (dayIdx) {
+      final label = timeframe == MealPlanTimeframe.daily ? 'Today' : _weekdayLabel(dayIdx);
+      final meals = <Meal>[];
+      for (int i = 0; i < mealsPerDay; i++) {
+        final mealTitle = _mealTitle(i, mealsPerDay);
+        final mealTarget = (targetCalories * splits[i]).round();
+        final hint = hints[i % hints.length];
+        final items = _pickByHint(hint, db, mealTarget);
+        meals.add(Meal(title: mealTitle, items: items));
+      }
+      return DayPlan(label: label, meals: meals);
+    });
+
+    return MealPlan(
+      timeframe: timeframe,
+      targetCalories: targetCalories,
+      preference: preference,
+      mealsPerDay: mealsPerDay,
+      days: days,
+    );
+  }
+
+  List<String> _extractBullets(String text) {
+    final lines = text.split('\n');
+    final bullets = <String>[];
+    for (final l in lines) {
+      final t = l.trimLeft();
+      if (t.startsWith('• ') || t.startsWith('- ')) {
+        final s = t.substring(2).trim();
+        if (s.isNotEmpty) bullets.add(s);
+      }
+    }
+    return bullets;
+  }
+
+  List<MealItem> _pickByHint(String hint, List<MealItem> db, int target) {
+    final tokens = hint.toLowerCase().split(RegExp(r'[^a-z]+')).where((e) => e.length >= 3).toList();
+    final matching = db.where((m) {
+      final n = m.name.toLowerCase();
+      return tokens.any((t) => n.contains(t));
+    }).toList();
+    if (matching.isEmpty) {
+      // fallback to heuristic
+      return _buildMeal('tmp', target, db).items;
+    }
+    // Greedy assemble until target
+    final chosen = <MealItem>[];
+    int remaining = target;
+    for (final m in matching) {
+      if (chosen.length >= 3) break;
+      if (m.calories < remaining) {
+        chosen.add(m);
+        remaining -= m.calories;
+      }
+    }
+    if (remaining > 80) {
+      chosen.add(_bestFiller(db).scale((remaining / _bestFiller(db).calories).clamp(0.5, 2.0)));
+    }
+    return chosen;
   }
 
   Meal _buildMeal(String title, int target, List<MealItem> db) {
@@ -187,6 +354,24 @@ class AiMealPlanService {
         return highProtein + [MealItem(name: 'Whey (1 scoop)', calories: 120, protein: 24, carbs: 3, fats: 1)];
       case DietaryPreference.omnivore:
         return omni;
+    }
+  }
+
+  Future<List<MealItem>> _foodDbFromSupabase() async {
+    try {
+      final rows = await SupabaseService.fetchRecipeItems(limit: 40);
+      return rows
+          .map((r) => MealItem(
+                name: (r['name'] ?? '').toString(),
+                calories: (r['calories'] is num) ? (r['calories'] as num).toInt() : 0,
+                protein: (r['protein'] is num) ? (r['protein'] as num).toInt() : 0,
+                carbs: (r['carbs'] is num) ? (r['carbs'] as num).toInt() : 0,
+                fats: (r['fats'] is num) ? (r['fats'] as num).toInt() : 0,
+              ))
+          .where((m) => m.name.isNotEmpty && m.calories > 0)
+          .toList(growable: false);
+    } catch (_) {
+      return const <MealItem>[];
     }
   }
 }

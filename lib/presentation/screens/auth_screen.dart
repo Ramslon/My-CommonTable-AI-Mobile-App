@@ -144,9 +144,22 @@ class _LoginFormState extends State<LoginForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Signed in successfully. Tap "Continue to app".')),
       );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      final msg = switch (e.code) {
+        'invalid-credential' => 'Incorrect email or password.',
+        'wrong-password' => 'Incorrect email or password.',
+        'user-not-found' => 'No account found for that email.',
+        'user-disabled' => 'This account has been disabled.',
+        'too-many-requests' => 'Too many attempts. Try again later.',
+        'network-request-failed' => 'Network error. Check your connection.',
+        'operation-not-allowed' => 'Email/password sign-in is disabled for this project.',
+        _ => e.message ?? 'Login failed. Please try again.'
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Login failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login failed. Please try again.')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -160,9 +173,20 @@ class _LoginFormState extends State<LoginForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Signed in with Google. Tap "Continue to app".')),
       );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      final msg = switch (e.code) {
+        'account-exists-with-different-credential' => 'An account already exists with a different sign-in method.',
+        'invalid-credential' => 'Google sign-in failed. Please try again.',
+        'operation-not-allowed' => 'Google sign-in is disabled for this project.',
+        'user-disabled' => 'This account has been disabled.',
+        'network-request-failed' => 'Network error. Check your connection.',
+        _ => e.message ?? 'Google sign-in failed.'
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google sign-in failed')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Google sign-in failed')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -270,11 +294,22 @@ class _RegisterFormState extends State<RegisterForm> {
       try {
         await AuthService().signOut();
       } catch (_) {}
-  final controller = DefaultTabController.of(context);
-  controller.animateTo(0);
+      final controller = DefaultTabController.of(context);
+      controller.animateTo(0);
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      final msg = switch (e.code) {
+        'email-already-in-use' => 'An account already exists for that email.',
+        'invalid-email' => 'The email address is invalid.',
+        'weak-password' => 'Password is too weak. Use at least 6 characters.',
+        'operation-not-allowed' => 'Email/password sign-up is disabled for this project.',
+        'network-request-failed' => 'Network error. Check your connection.',
+        _ => e.message ?? 'Registration failed. Please try again.'
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registration failed. Please try again.')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

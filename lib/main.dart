@@ -13,6 +13,7 @@ import 'package:commontable_ai_app/core/services/offline_sync_service.dart';
 import 'package:commontable_ai_app/core/services/theme_settings.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:commontable_ai_app/core/services/supabase_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +25,13 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   // Initialize Firebase defensively; app can still run if not configured.
   await FirebaseBoot.init();
+  // Initialize Supabase if configured via .env or --dart-define
+  try {
+    await SupabaseService.init(
+      url: dotenv.env['SUPABASE_URL'],
+      anonKey: dotenv.env['SUPABASE_ANON_KEY'],
+    );
+  } catch (_) {}
   // Set up notifications; safe to call even if FCM not fully configured.
   try {
     await NotificationsService.init();

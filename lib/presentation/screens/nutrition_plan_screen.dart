@@ -8,6 +8,8 @@ import 'package:commontable_ai_app/core/services/ai_meal_plan_service.dart';
 import 'package:commontable_ai_app/core/services/diet_assessment_service.dart';
 import 'package:commontable_ai_app/core/services/offline_cache_service.dart';
 import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
+import 'package:commontable_ai_app/core/services/preferences_service.dart';
+import 'package:commontable_ai_app/core/models/user_preferences.dart' as up;
 import 'package:commontable_ai_app/routes/app_route.dart';
 
 class NutritionPlanScreen extends StatefulWidget {
@@ -27,8 +29,11 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
   int _mealsPerDay = 3;
   String _goal = 'Maintain'; // Lose, Maintain, Gain
   late final TextEditingController _calorieCtrl;
+  final TextEditingController _allergiesCtrl = TextEditingController();
+  final TextEditingController _dislikesCtrl = TextEditingController();
   bool _loading = false;
   MealPlan? _plan;
+  up.UserPreferences? _prefs;
 
   // Assessment state
   final TextEditingController _dietTextCtrl = TextEditingController();
@@ -47,12 +52,15 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
     _resolveUser();
     _loadHistory();
     _loadOfflinePlanIfAny();
+    _loadPreferences();
   }
 
   @override
   void dispose() {
     _calorieCtrl.dispose();
     _dietTextCtrl.dispose();
+    _allergiesCtrl.dispose();
+    _dislikesCtrl.dispose();
     super.dispose();
   }
 
@@ -88,12 +96,24 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
       _plan = null;
     });
     await Future<void>.delayed(const Duration(milliseconds: 250));
-    final plan = _service.generatePlan(
-      targetCalories: calories,
-      timeframe: _timeframe,
-      preference: _preference,
-      mealsPerDay: _mealsPerDay,
-    );
+    MealPlan plan;
+    try {
+      plan = await _service.generatePlanPersonalized(
+        targetCalories: calories,
+        timeframe: _timeframe,
+        preference: _preference,
+        preferences: _prefs,
+        mealsPerDay: _mealsPerDay,
+      );
+    } catch (_) {
+      // Fallback to local generator
+      plan = _service.generatePlan(
+        targetCalories: calories,
+        timeframe: _timeframe,
+        preference: _preference,
+        mealsPerDay: _mealsPerDay,
+      );
+    }
     setState(() {
       _plan = plan;
       _loading = false;
@@ -199,6 +219,116 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
     }
   }
 
+  Future<void> _savePreferences() async {
+    final prefs = up.UserPreferences(
+      goal: _goal.toLowerCase(),
+      allergies: _allergiesCtrl.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      dislikes: _dislikesCtrl.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      mealsPerDay: _mealsPerDay,
+      dailyCaloriesTarget:
+          int.tryParse(_calorieCtrl.text.trim()) ?? _goalToCalories(_goal),
+    );
+    try {
+      await PreferencesService().save(prefs);
+      setState(() => _prefs = prefs);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preferences saved')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final p = await PreferencesService().load();
+      if (p == null) return;
+      setState(() {
+        _prefs = p;
+        _goal = switch (p.goal.toLowerCase()) {
+          'lose' => 'Lose',
+          'gain' => 'Gain',
+          _ => 'Maintain',
+        };
+        _mealsPerDay = p.mealsPerDay;
+        if (p.dailyCaloriesTarget != null) {
+          _calorieCtrl.text = p.dailyCaloriesTarget.toString();
+        }
+        _allergiesCtrl.text = p.allergies.join(', ');
+        _dislikesCtrl.text = p.dislikes.join(', ');
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _savePlan() async {
+    if (_plan == null) return;
+    try {
+      // Always save offline
+      await OfflineCacheService().saveMealPlan(_plan!);
+      // Save to Firestore if possible
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      await _resolveUser();
+      await FirebaseFirestore.instance.collection('mealPlans').add({
+        'createdAt': DateTime.now().toIso8601String(),
+        'plan': _plan!.toMap(),
+        if (_userId != null) 'userId': _userId,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Plan saved')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _logToday() async {
+    if (_plan == null) return;
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+      await _resolveUser();
+      final day = _plan!.days.first;
+      await FirebaseFirestore.instance.collection('dailyLogs').add({
+        'date': DateTime.now().toIso8601String(),
+        'totals': {
+          'calories': day.dayCalories,
+          'protein': day.dayProtein,
+          'carbs': day.dayCarbs,
+          'fats': day.dayFats,
+        },
+        if (_userId != null) 'userId': _userId,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Logged today's plan totals")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Log failed: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -222,7 +352,29 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
               _buildForm(),
               const SizedBox(height: 16),
               if (_loading) const Center(child: CircularProgressIndicator()),
-              if (!_loading && _plan != null) _PlanView(plan: _plan!),
+              if (!_loading && _plan != null) ...[
+                _PlanView(plan: _plan!),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _savePlan,
+                        icon: const Icon(Icons.cloud_upload_outlined),
+                        label: const Text('Save Plan'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _logToday,
+                        icon: const Icon(Icons.today_outlined),
+                        label: const Text('Log Today'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 16),
               _buildAssessmentCard(),
               if (_assessment != null) ...[
@@ -371,6 +523,22 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Target Calories'),
             ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _allergiesCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Allergies (comma-separated)',
+                helperText: 'e.g. peanut, gluten',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _dislikesCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Dislikes (comma-separated)',
+                helperText: 'e.g. eggplant, tuna',
+              ),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -382,6 +550,15 @@ class _NutritionPlanScreenState extends State<NutritionPlanScreen> {
                 onPressed: _loading ? null : _generate,
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('Generate Plan'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _savePreferences,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Save Preferences'),
               ),
             ),
           ],

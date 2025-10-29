@@ -5,6 +5,7 @@ import 'package:commontable_ai_app/routes/app_route.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/theme_settings.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:commontable_ai_app/core/services/diagnostics_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,6 +17,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   InsightsProvider _provider = InsightsProvider.simulated;
   bool _hideReminder = false;
+  DiagnosticsResult? _diag;
+  bool _diagLoading = false;
 
   @override
   void initState() {
@@ -120,6 +123,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 20),
             _buildSettingsSection(
+              title: 'Diagnostics',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Verify API keys and connectivity',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _diagLoading ? null : _runDiagnostics,
+                          icon: const Icon(Icons.health_and_safety_outlined),
+                          label: Text(_diagLoading ? 'Running…' : 'Run Diagnostics'),
+                        ),
+                      ),
+                      if (_diag != null) ...[
+                        const SizedBox(height: 8),
+                        _diagRow('Gemini', _diag!.gemini),
+                        _diagRow('Hugging Face', _diag!.huggingFace),
+                        _diagRow('Supabase', _diag!.supabase),
+                        const SizedBox(height: 4),
+                        Text('Completed at: ${_diag!.completedAt.toLocal()}'),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            _buildSettingsSection(
               title: 'Support',
               children: [
                 _buildSettingsTile(
@@ -156,6 +192,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _runDiagnostics() async {
+    setState(() => _diagLoading = true);
+    try {
+      final res = await DiagnosticsService().run();
+      if (!mounted) return;
+      setState(() => _diag = res);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Diagnostics failed: $e')));
+    } finally {
+      if (mounted) setState(() => _diagLoading = false);
+    }
+  }
+
+  Widget _diagRow(String name, ServiceStatus s) {
+    final color = s.reachable
+        ? Colors.green
+        : s.configured
+            ? Colors.orange
+            : Colors.red;
+    final icon = s.reachable
+        ? Icons.check_circle
+        : s.configured
+            ? Icons.error_outline
+            : Icons.cancel;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+          Expanded(child: Text('$name: ${s.message}')),
+        ],
       ),
     );
   }
