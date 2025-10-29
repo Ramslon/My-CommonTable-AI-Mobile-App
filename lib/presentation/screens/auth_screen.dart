@@ -31,15 +31,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       stream: AuthService().authStateChanges,
       builder: (context, snapshot) {
         final user = snapshot.data;
-        if (user != null && !(user.isAnonymous)) {
-          // Navigate to home
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            Navigator.pushReplacementNamed(context, AppRoutes.home);
-          });
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-
         return Scaffold(
           appBar: AppBar(
             title: const Text('Sign in to continue'),
@@ -50,6 +41,47 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ),
           body: Column(
             children: [
+              if (user != null && !(user.isAnonymous))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Material(
+                        color: Colors.green.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          leading: const Icon(Icons.verified_user, color: Colors.green),
+                          title: Text(
+                            'You are signed in',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          subtitle: Text(AuthService().currentDisplayName ?? user.email ?? 'Current account'),
+                          trailing: TextButton(
+                            onPressed: () async {
+                              await AuthService().signOut();
+                              if (!mounted) return;
+                              setState(() {});
+                            },
+                            child: const Text('Switch account'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pushReplacementNamed(context, AppRoutes.home);
+                          },
+                          icon: const Icon(Icons.arrow_forward),
+                          label: const Text('Continue to app'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
@@ -63,6 +95,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: () async {
+                      // Always switch to guest mode for "Skip for now"
+                      try {
+                        await AuthService().signOut();
+                      } catch (_) {}
                       try {
                         await AuthService().ensureAnonymous();
                       } catch (_) {}
