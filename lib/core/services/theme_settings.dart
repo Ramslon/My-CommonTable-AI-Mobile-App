@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:commontable_ai_app/core/services/firebase_boot.dart';
 
 class ThemeSettings extends ChangeNotifier {
   static final ThemeSettings _instance = ThemeSettings._internal();
@@ -39,6 +41,12 @@ class ThemeSettings extends ChangeNotifier {
   Future<void> setLocale(String? code) async {
     _locale = code == null ? null : Locale(code);
     await AppSettings().setLanguageCode(code);
+    // Propagate language to Firebase Auth so any emails or auth UIs use the selected language.
+    try {
+      if (FirebaseBoot.available && code != null) {
+        await FirebaseAuth.instance.setLanguageCode(code);
+      }
+    } catch (_) {}
     notifyListeners();
   }
 }

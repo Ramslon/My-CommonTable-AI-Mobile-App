@@ -288,7 +288,9 @@ class _RegisterFormState extends State<RegisterForm> {
       await AuthService().registerWithEmail(email: _emailCtrl.text.trim(), password: _passCtrl.text);
       if (!mounted) return;
       // Inform user and switch to login. Also sign out because register may sign the user in.
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
         const SnackBar(content: Text('Account created successfully. Proceed to log in.')),
       );
       try {
@@ -298,6 +300,8 @@ class _RegisterFormState extends State<RegisterForm> {
       controller.animateTo(0);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
       final msg = switch (e.code) {
         'email-already-in-use' => 'An account already exists for that email.',
         'invalid-email' => 'The email address is invalid.',
@@ -306,10 +310,12 @@ class _RegisterFormState extends State<RegisterForm> {
         'network-request-failed' => 'Network error. Check your connection.',
         _ => e.message ?? 'Registration failed. Please try again.'
       };
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registration failed. Please try again.')));
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(const SnackBar(content: Text('Registration failed. Please try again.')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

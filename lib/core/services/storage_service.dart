@@ -11,15 +11,22 @@ class StorageService {
   Future<String> uploadImageBytes(
     Uint8List bytes, {
     String folder = 'posts',
+    String? objectPath,
+    String contentType = 'image/jpeg',
   }) async {
     if (!FirebaseBoot.available) {
       throw StateError('Cloud storage not available');
     }
-    final id = _uuid.v4();
-    final ref = _storage.ref().child('$folder/$id.jpg');
+    // Allow a fixed object path (e.g., profiles/<uid>.jpg), else fall back to folder/<uuid>.jpg
+    final ref = objectPath != null
+        ? _storage.ref(objectPath)
+        : _storage.ref().child('$folder/${_uuid.v4()}.jpg');
     final task = await ref.putData(
       bytes,
-      SettableMetadata(contentType: 'image/jpeg'),
+      SettableMetadata(
+        contentType: contentType,
+        cacheControl: 'public, max-age=3600',
+      ),
     );
     return task.ref.getDownloadURL();
   }

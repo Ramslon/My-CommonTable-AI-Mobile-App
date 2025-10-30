@@ -82,7 +82,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     setState(() => _saving = true);
     try {
-      final url = await StorageService().uploadImageBytes(bytes, folder: 'profile');
+      // Use a stable per-user path to avoid orphaned files and ensure consistent access
+      final path = 'profiles/${user.uid}.jpg';
+      final url = await StorageService().uploadImageBytes(bytes, objectPath: path, folder: 'profiles');
       await user.updatePhotoURL(url);
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'photoURL': url,

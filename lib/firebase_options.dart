@@ -49,7 +49,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '901663392605',
     projectId: 'commonai-app',
     authDomain: 'commonai-app.firebaseapp.com',
-    storageBucket: 'commonai-app.firebasestorage.app',
+    storageBucket: 'commonai-app.appspot.com',
+    databaseURL: 'https://commonai-app-default-rtdb.firebaseio.com',
     measurementId: 'G-WVF7F8R9VC',
   );
 
@@ -58,7 +59,8 @@ class DefaultFirebaseOptions {
     appId: '1:901663392605:android:b13732a9759d28338fdeb4',
     messagingSenderId: '901663392605',
     projectId: 'commonai-app',
-    storageBucket: 'commonai-app.firebasestorage.app',
+    storageBucket: 'commonai-app.appspot.com',
+    databaseURL: 'https://commonai-app-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -66,7 +68,8 @@ class DefaultFirebaseOptions {
     appId: '1:901663392605:ios:d22e4d93460ccc028fdeb4',
     messagingSenderId: '901663392605',
     projectId: 'commonai-app',
-    storageBucket: 'commonai-app.firebasestorage.app',
+    storageBucket: 'commonai-app.appspot.com',
+    databaseURL: 'https://commonai-app-default-rtdb.firebaseio.com',
     iosBundleId: 'com.example.commontableAiApp',
   );
 
@@ -75,7 +78,8 @@ class DefaultFirebaseOptions {
     appId: '1:901663392605:ios:d22e4d93460ccc028fdeb4',
     messagingSenderId: '901663392605',
     projectId: 'commonai-app',
-    storageBucket: 'commonai-app.firebasestorage.app',
+    storageBucket: 'commonai-app.appspot.com',
+    databaseURL: 'https://commonai-app-default-rtdb.firebaseio.com',
     iosBundleId: 'com.example.commontableAiApp',
   );
 }
