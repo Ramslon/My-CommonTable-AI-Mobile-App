@@ -8,8 +8,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-Future<_Resp> _postJson(Uri uri, Map<String, String> headers, Object body,
-    {Duration timeout = const Duration(seconds: 45)}) async {
+Future<_Resp> _postJson(
+  Uri uri,
+  Map<String, String> headers,
+  Object body, {
+  Duration timeout = const Duration(seconds: 45),
+}) async {
   final sw = Stopwatch()..start();
   final client = HttpClient();
   try {
@@ -40,29 +44,34 @@ String _truncate(String s, [int max = 240]) {
 
 Future<bool> _checkGemini() async {
   final key = Platform.environment['GEMINI_API_KEY'];
-  final model = Platform.environment['GEMINI_MODEL'] ?? 'gemini-1.5-flash-latest';
+  final model = Platform.environment['GEMINI_MODEL'] ?? 'gemini-2.0-flash';
   if (key == null || key.isEmpty) {
     stdout.writeln('Gemini: GEMINI_API_KEY is missing');
     return false;
   }
   final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1/models/$model:generateContent?key=$key');
+    'https://generativelanguage.googleapis.com/v1/models/$model:generateContent?key=$key',
+  );
   final body = {
     'contents': [
       {
         'parts': [
-          {'text': 'Ping from AI sanity checker. Reply with a short hello.'}
-        ]
-      }
-    ]
+          {'text': 'Ping from AI sanity checker. Reply with a short hello.'},
+        ],
+      },
+    ],
   };
   final res = await _postJson(uri, {'Content-Type': 'application/json'}, body);
-  stdout.writeln('Gemini [$model]: HTTP ${res.status} in ${res.elapsed.inMilliseconds}ms');
+  stdout.writeln(
+    'Gemini [$model]: HTTP ${res.status} in ${res.elapsed.inMilliseconds}ms',
+  );
   try {
     final j = jsonDecode(res.body) as Map<String, dynamic>;
     final candidates = j['candidates'] as List<dynamic>?;
     final text = candidates != null && candidates.isNotEmpty
-        ? ((candidates.first as Map)['content']?['parts']?[0]?['text'] as String? ?? '')
+        ? ((candidates.first as Map)['content']?['parts']?[0]?['text']
+                  as String? ??
+              '')
         : (j['error']?['message'] as String? ?? '');
     stdout.writeln('Gemini text: ${_truncate(text)}');
     return res.status == 200 && text.isNotEmpty;
@@ -73,9 +82,15 @@ Future<bool> _checkGemini() async {
 }
 
 Future<bool> _checkOpenAI() async {
-  final key = Platform.environment['OPENAI_API_KEY'] ?? Platform.environment['OPENAI_KEY'];
-  final base = Platform.environment['OPENAI_BASE_URL']?.trim().isNotEmpty == true
-      ? Platform.environment['OPENAI_BASE_URL']!.trim().replaceAll(RegExp(r"/+$"), '')
+  final key =
+      Platform.environment['OPENAI_API_KEY'] ??
+      Platform.environment['OPENAI_KEY'];
+  final base =
+      Platform.environment['OPENAI_BASE_URL']?.trim().isNotEmpty == true
+      ? Platform.environment['OPENAI_BASE_URL']!.trim().replaceAll(
+          RegExp(r"/+$"),
+          '',
+        )
       : 'https://api.openai.com/v1';
   final model = Platform.environment['OPENAI_MODEL'] ?? 'gpt-4o-mini';
   if (key == null || key.isEmpty) {
@@ -89,12 +104,19 @@ Future<bool> _checkOpenAI() async {
     'max_tokens': 64,
     'messages': [
       {'role': 'system', 'content': 'You are a helpful assistant.'},
-      {'role': 'user', 'content': 'Ping from AI sanity checker. Short hello, please.'}
-    ]
+      {
+        'role': 'user',
+        'content': 'Ping from AI sanity checker. Short hello, please.',
+      },
+    ],
   };
-  final res = await _postJson(
-      uri, {'Content-Type': 'application/json', 'Authorization': 'Bearer $key'}, body);
-  stdout.writeln('OpenAI [$model]: HTTP ${res.status} in ${res.elapsed.inMilliseconds}ms');
+  final res = await _postJson(uri, {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $key',
+  }, body);
+  stdout.writeln(
+    'OpenAI [$model]: HTTP ${res.status} in ${res.elapsed.inMilliseconds}ms',
+  );
   try {
     final j = jsonDecode(res.body) as Map<String, dynamic>;
     final choices = j['choices'] as List<dynamic>?;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:commontable_ai_app/core/services/health_sync_service.dart';
+import 'package:commontable_ai_app/core/services/fitbit_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
 
@@ -12,6 +13,7 @@ class HealthSyncSettingsScreen extends StatefulWidget {
 
 class _HealthSyncSettingsScreenState extends State<HealthSyncSettingsScreen> {
   final _health = HealthSyncService();
+  final _fitbit = FitbitService();
   bool _connecting = false;
   String? _status;
 
@@ -57,6 +59,61 @@ class _HealthSyncSettingsScreenState extends State<HealthSyncSettingsScreen> {
                 icon: const Icon(Icons.link),
                 label: Text(_connecting ? 'Connecting…' : 'Connect devices'),
               ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  try {
+                    setState(() => _status = 'Starting Fitbit sign-in…');
+                    final msg = await _fitbit.authorize();
+                    if (!mounted) return;
+                    setState(() => _status = msg);
+                  } catch (e) {
+                    if (!mounted) return;
+                    setState(() => _status = 'Fitbit auth failed: $e');
+                  }
+                },
+                icon: const Icon(Icons.watch),
+                label: const Text('Connect Fitbit (OAuth)'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        setState(() => _status = 'Fetching Fitbit profile…');
+                        final profile = await _fitbit.getProfile();
+                        if (!mounted) return;
+                        final user = (profile['user'] as Map?) ?? {};
+                        final name = user['displayName'] ?? user['fullName'] ?? 'Unknown';
+                        setState(() => _status = 'Fitbit profile: $name');
+                      } catch (e) {
+                        if (!mounted) return;
+                        setState(() => _status = 'Profile failed: $e');
+                      }
+                    },
+                    icon: const Icon(Icons.account_circle),
+                    label: const Text('View Fitbit profile'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      await _fitbit.disconnect();
+                      if (!mounted) return;
+                      setState(() => _status = 'Disconnected Fitbit');
+                    },
+                    icon: const Icon(Icons.link_off),
+                    label: const Text('Disconnect'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Wrap(

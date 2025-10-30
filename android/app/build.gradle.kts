@@ -33,6 +33,17 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Placeholders for OAuth redirect URI to receive callbacks on Android
+        manifestPlaceholders[
+            "FITBIT_REDIRECT_SCHEME"
+        ] = "commontable.fitbit"
+        manifestPlaceholders[
+            "FITBIT_REDIRECT_HOST"
+        ] = "auth"
+        manifestPlaceholders[
+            "FITBIT_REDIRECT_PATH"
+        ] = "callback"
     }
 
     buildTypes {
