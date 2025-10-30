@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:commontable_ai_app/core/services/health_sync_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:io' show Platform;
 
 class HealthSyncSettingsScreen extends StatefulWidget {
   const HealthSyncSettingsScreen({super.key});
@@ -56,6 +58,38 @@ class _HealthSyncSettingsScreenState extends State<HealthSyncSettingsScreen> {
                 label: Text(_connecting ? 'Connecting…' : 'Connect devices'),
               ),
             ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.favorite),
+                  label: const Text('Open Google Fit'),
+                  onPressed: Platform.isAndroid ? _openGoogleFit : null,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.health_and_safety),
+                  label: const Text('Open Apple Health'),
+                  onPressed: Platform.isIOS ? _openAppleHealth : null,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.watch),
+                  label: const Text('Fitbit'),
+                  onPressed: _openFitbit,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.directions_bike),
+                  label: const Text('Garmin'),
+                  onPressed: _openGarmin,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.scale),
+                  label: const Text('Withings'),
+                  onPressed: _openWithings,
+                ),
+              ],
+            ),
             if (_status != null) ...[
               const SizedBox(height: 12),
               Text(_status!),
@@ -66,5 +100,57 @@ class _HealthSyncSettingsScreenState extends State<HealthSyncSettingsScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openUrlList(List<Uri> candidates) async {
+    for (final uri in candidates) {
+      if (await canLaunchUrl(uri)) {
+        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (ok) return;
+      }
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to open target app or store.')));
+  }
+
+  Future<void> _openGoogleFit() async {
+    // Try intent to app, then Play Store fallback
+    await _openUrlList([
+      Uri.parse('intent://open#Intent;scheme=googlefit;package=com.google.android.apps.fitness;end'),
+      Uri.parse('market://details?id=com.google.android.apps.fitness'),
+      Uri.parse('https://play.google.com/store/apps/details?id=com.google.android.apps.fitness'),
+    ]);
+  }
+
+  Future<void> _openAppleHealth() async {
+    // Health is built-in; scheme should open app on iOS
+    await _openUrlList([
+      Uri.parse('x-apple-health://'),
+      Uri.parse('x-apple-health://sources'),
+    ]);
+  }
+
+  Future<void> _openFitbit() async {
+    await _openUrlList([
+      Uri.parse('fitbit://'),
+      if (Platform.isAndroid) Uri.parse('market://details?id=com.fitbit.FitbitMobile') else Uri.parse('https://apps.apple.com/app/fitbit-health-fitness/id462638897'),
+      Uri.parse('https://www.fitbit.com/'),
+    ]);
+  }
+
+  Future<void> _openGarmin() async {
+    await _openUrlList([
+      Uri.parse('garminconnect://'),
+      if (Platform.isAndroid) Uri.parse('market://details?id=com.garmin.android.apps.connectmobile') else Uri.parse('https://apps.apple.com/app/garmin-connect/id583446403'),
+      Uri.parse('https://connect.garmin.com/'),
+    ]);
+  }
+
+  Future<void> _openWithings() async {
+    await _openUrlList([
+      Uri.parse('withings-health-mate://'),
+      if (Platform.isAndroid) Uri.parse('market://details?id=com.withings.wiscale2') else Uri.parse('https://apps.apple.com/app/withings-health-mate/id542701020'),
+      Uri.parse('https://www.withings.com/health-mate'),
+    ]);
   }
 }
