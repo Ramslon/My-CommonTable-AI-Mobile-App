@@ -11,6 +11,7 @@ import 'package:commontable_ai_app/core/services/chat_coach_service.dart';
 import 'package:commontable_ai_app/core/services/chat_history_service.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
 import 'package:commontable_ai_app/core/services/currency_service.dart';
+import 'package:commontable_ai_app/routes/app_route.dart';
 
 class PremiumFeaturesScreen extends StatefulWidget {
 	const PremiumFeaturesScreen({super.key});
@@ -338,13 +339,22 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 						// Connected devices
 						const Text('Connected Health Devices', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 						const SizedBox(height: 8),
-						Wrap(
+												Wrap(
 							spacing: 8,
 							children: [
 								Chip(avatar: const Icon(Icons.watch), label: Text(platformLabel)),
 								const Chip(avatar: Icon(Icons.favorite), label: Text('Blood Pressure (optional)')),
 								],
 							),
+												const SizedBox(height: 8),
+												SizedBox(
+													width: double.infinity,
+													child: OutlinedButton.icon(
+														icon: const Icon(Icons.bluetooth_connected),
+														label: const Text('Connect devices'),
+														onPressed: () => _requirePlus(() => Navigator.pushNamed(context, AppRoutes.healthSyncSettings)),
+													),
+												),
 						const SizedBox(height: 16),
 
 						// Wearable metrics quick view
@@ -384,19 +394,31 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 						],
 
 						const SizedBox(height: 20),
-						const Text('Premium Benefits', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+												const Text('Premium Benefits', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 						const SizedBox(height: 8),
-						_benefitTile(Icons.support_agent, '1:1 Coaching', 'Personal guidance, check-ins, and tailored nudges.'),
-						_benefitTile(Icons.delivery_dining, 'Healthy Meal Delivery', 'Curated options that match your plan.'),
+												_benefitTile(
+													Icons.support_agent,
+													'1:1 Coaching',
+													'Personal guidance, check-ins, and tailored nudges.',
+													onTap: () => _requirePlus(() => Navigator.pushNamed(context, AppRoutes.premiumDevicesInfo)), // reuse info screen style
+												),
+												_benefitTile(
+													Icons.delivery_dining,
+													'Healthy Meal Delivery',
+													'Curated options that match your plan.',
+													onTap: () => _requirePlus(() => Navigator.pushNamed(context, AppRoutes.smartGroceryInfo)),
+												),
 						_benefitTile(
 							Icons.health_and_safety,
 							'Integration with Premium Health Devices',
-							'Syncs with CGMs, smart scales, wearables, and other advanced devices for precise nutrition tracking.',
+														'Syncs with CGMs, smart scales, wearables, and other advanced devices for precise nutrition tracking.',
+														onTap: () => _requirePlus(() => Navigator.pushNamed(context, AppRoutes.premiumDevicesInfo)),
 						),
 						_benefitTile(
 							Icons.shopping_cart_checkout,
 							'Personalized Meal Delivery & Smart Grocery Lists',
-							'Generates optimized weekly plans and auto-syncs grocery lists with delivery services.',
+														'Generates optimized weekly plans and auto-syncs grocery lists with delivery services.',
+														onTap: () => _requirePlus(() => Navigator.pushNamed(context, AppRoutes.smartGroceryInfo)),
 						),
 						_benefitTile(Icons.biotech, 'Genetic Insights', 'Optional DNA-based nutrition insights.'),
 
@@ -625,13 +647,14 @@ class _MetricTile extends StatelessWidget {
 	}
 }
 
-Widget _benefitTile(IconData icon, String title, String subtitle) {
+Widget _benefitTile(IconData icon, String title, String subtitle, {VoidCallback? onTap}) {
 	return Card(
 		child: ListTile(
 			leading: Icon(icon, color: Colors.green),
 			title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
 			subtitle: Text(subtitle),
 			trailing: const Icon(Icons.check_circle, color: Colors.green),
+			onTap: onTap,
 		),
 	);
 }

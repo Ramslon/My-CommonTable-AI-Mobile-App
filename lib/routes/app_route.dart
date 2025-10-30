@@ -19,6 +19,9 @@ import 'package:commontable_ai_app/presentation/screens/profile_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/offline_accessibility_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/notifications_settings_screen.dart';
 import 'package:commontable_ai_app/presentation/screens/help_faq_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/health_sync_settings_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/premium_devices_info_screen.dart';
+import 'package:commontable_ai_app/presentation/screens/smart_grocery_info_screen.dart';
 
 class AppRoutes {
   static const String onboarding = '/onboarding';
@@ -40,6 +43,9 @@ class AppRoutes {
   static const String offlineAccessibility = '/offline-accessibility';
   static const String notifications = '/notifications';
   static const String helpFaq = '/help-faq';
+  static const String healthSyncSettings = '/health-sync-settings';
+  static const String premiumDevicesInfo = '/premium-devices-info';
+  static const String smartGroceryInfo = '/smart-grocery-info';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -85,6 +91,12 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const NotificationsSettingsScreen());
       case helpFaq:
         return MaterialPageRoute(builder: (_) => const HelpFaqScreen());
+      case healthSyncSettings:
+        return MaterialPageRoute(builder: (_) => const HealthSyncSettingsScreen());
+      case premiumDevicesInfo:
+        return MaterialPageRoute(builder: (_) => const PremiumDevicesInfoScreen());
+      case smartGroceryInfo:
+        return MaterialPageRoute(builder: (_) => const SmartGroceryInfoScreen());
       case AppRoutes.settings:
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
       case profile:
