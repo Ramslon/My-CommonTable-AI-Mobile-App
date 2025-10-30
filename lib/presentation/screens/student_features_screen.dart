@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart' as cf;
@@ -354,15 +355,17 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			if (Firebase.apps.isEmpty) {
 				await Firebase.initializeApp();
 			}
-			final conn = await Connectivity().checkConnectivity();
-			if (conn.contains(ConnectivityResult.none)) {
+			if (await _isOffline()) {
 				if (_deals.isEmpty) {
 					final list = await _loadDealsFromAssets();
 					setState(() => _deals = _sortByDistance(list));
 				}
 				return;
 			}
-			final snap = await FirebaseDatabase.instance.ref('local_offers/global').get();
+			final snap = await FirebaseDatabase.instance
+				.ref('local_offers/global')
+				.get()
+				.timeout(const Duration(seconds: 5));
 			final list = <_LocalOffer>[];
 			final val = snap.value;
 			if (val is List) {
@@ -566,8 +569,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 		if (_mapsKey.isEmpty) return;
 		setState(() => _loadingEateries = true);
 		try {
-			final conn = await Connectivity().checkConnectivity();
-			if (conn.contains(ConnectivityResult.none)) return;
+			if (await _isOffline()) return;
 			final params = <String, String>{
 				'query': 'healthy restaurant near me',
 				'key': _mapsKey,
@@ -577,7 +579,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				params['radius'] = '5000';
 			}
 			final uri = Uri.https('maps.googleapis.com', '/maps/api/place/textsearch/json', params);
-			final res = await http.get(uri);
+			final res = await http.get(uri).timeout(const Duration(seconds: 6));
 			if (res.statusCode == 200) {
 				final data = jsonDecode(res.body) as Map<String, dynamic>;
 				final results = (data['results'] as List?) ?? [];
@@ -592,6 +594,24 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 		} finally {
 			if (mounted) setState(() => _loadingEateries = false);
 		}
+	}
+
+	// Connectivity helper to tolerate API changes across connectivity_plus versions
+	Future<bool> _isOffline() async {
+		try {
+			final dynamic conn = await Connectivity().checkConnectivity();
+			if (conn is ConnectivityResult) {
+				return conn == ConnectivityResult.none;
+			}
+			if (conn is Iterable) {
+				try {
+					return conn.contains(ConnectivityResult.none);
+				} catch (_) {
+					return false;
+				}
+			}
+		} catch (_) {}
+		return false;
 	}
 
 	// ===== Social & Gamified =====
