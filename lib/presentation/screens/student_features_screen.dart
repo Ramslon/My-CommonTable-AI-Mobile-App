@@ -1,9 +1,20 @@
+import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as cf;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
+import 'package:commontable_ai_app/routes/app_route.dart';
 
 /// Affordable Meal Suggestions (Student-focused)
 /// - Budget-friendly ideas using common, low-cost staples
@@ -23,6 +34,13 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	bool _useLocalStaples = true;
 	bool _loading = false;
 	String _region = 'Default';
+
+	// Deals & Dining
+	final _currency = NumberFormat.simpleCurrency();
+	bool _loadingDeals = false;
+	List<_LocalOffer> _deals = [];
+	Position? _position;
+	List<CafeteriaEntry> _cafeterias = [];
 
 	late List<MealSuggestion> _allSuggestions;
 	late List<MealSuggestion> _mentalHealth; // curated list: mood-boosting, stress-reducing
@@ -53,6 +71,14 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 		_allSuggestions = _buildSuggestionCatalog(_region);
 		_mentalHealth = _buildMentalHealthSuggestions(_region);
 		_loadRecentMoodLogs();
+		_initLocalContext();
+	}
+
+	Future<void> _initLocalContext() async {
+		await _loadCachedDeals();
+		await _refreshDeals();
+		await _resolveLocation();
+		await _loadCafeteriasFromAssets();
 	}
 
 	Future<void> _loadRecentMoodLogs() async {
@@ -65,7 +91,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 					// No user: skip remote fetch
 					return;
 				}
-				Query<Map<String, dynamic>> q = FirebaseFirestore.instance
+				cf.Query<Map<String, dynamic>> q = cf.FirebaseFirestore.instance
 						.collection('studentMoodLogs')
 						.where('userId', isEqualTo: uid)
 						.orderBy('createdAt', descending: true)
@@ -154,7 +180,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				await Firebase.initializeApp();
 			}
 				final uid = FirebaseAuth.instance.currentUser?.uid;
-				await FirebaseFirestore.instance.collection('studentMoodLogs').add({
+				await cf.FirebaseFirestore.instance.collection('studentMoodLogs').add({
 				'createdAt': DateTime.now().toIso8601String(),
 				'moodKey': key,
 				'moodLabel': label,
@@ -259,6 +285,12 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 						const SizedBox(height: 16),
 						if (_loading) const Center(child: CircularProgressIndicator()),
 						if (!_loading && _generated.isNotEmpty) _buildResults(),
+						const SizedBox(height: 16),
+						_buildDealsSection(),
+						const SizedBox(height: 16),
+						_buildCafeteriaGuidanceSection(),
+						const SizedBox(height: 16),
+						_buildSocialSection(),
 						// Mental health nutrition section (always visible)
 						const SizedBox(height: 16),
 						_buildMentalHealthSection(),
@@ -293,6 +325,252 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 								),
 							),
 						),
+		);
+	}
+
+	// ===== Deals: highlight current supermarket/local offers =====
+	Future<void> _resolveLocation() async {
+		try {
+			final perm = await Geolocator.checkPermission();
+			if (perm == LocationPermission.denied) {
+				await Geolocator.requestPermission();
+			}
+			if (await Geolocator.isLocationServiceEnabled()) {
+				_position = await Geolocator.getCurrentPosition();
+				if (mounted) setState(() {});
+			}
+		} catch (_) {}
+	}
+
+	Future<void> _refreshDeals() async {
+		setState(() => _loadingDeals = true);
+		try {
+			if (Firebase.apps.isEmpty) {
+				await Firebase.initializeApp();
+			}
+			final conn = await Connectivity().checkConnectivity();
+			if (conn.contains(ConnectivityResult.none)) {
+				if (_deals.isEmpty) {
+					final list = await _loadDealsFromAssets();
+					setState(() => _deals = _sortByDistance(list));
+				}
+				return;
+			}
+			final snap = await FirebaseDatabase.instance.ref('local_offers/global').get();
+			final list = <_LocalOffer>[];
+			final val = snap.value;
+			if (val is List) {
+				for (final item in val) {
+					if (item is Map) list.add(_LocalOffer.fromMap(Map<String, dynamic>.from(item)));
+				}
+			} else if (val is Map) {
+				val.forEach((key, item) {
+					if (item is Map) list.add(_LocalOffer.fromMap(Map<String, dynamic>.from(item)));
+				});
+			}
+			setState(() => _deals = _sortByDistance(list));
+			await _cacheDeals();
+		} catch (_) {
+			if (_deals.isEmpty) {
+				final list = await _loadDealsFromAssets();
+				setState(() => _deals = _sortByDistance(list));
+			}
+		} finally {
+			if (mounted) setState(() => _loadingDeals = false);
+		}
+	}
+
+	List<_LocalOffer> _sortByDistance(List<_LocalOffer> list) {
+		if (_position == null) return list;
+		final sorted = [...list];
+		sorted.sort((a, b) {
+			final da = (a.lat != null && a.lng != null) ? _distanceKm(_position!.latitude, _position!.longitude, a.lat!, a.lng!) : double.infinity;
+			final db = (b.lat != null && b.lng != null) ? _distanceKm(_position!.latitude, _position!.longitude, b.lat!, b.lng!) : double.infinity;
+			return da.compareTo(db);
+		});
+		return sorted;
+	}
+
+	Future<void> _cacheDeals() async {
+		try {
+			final prefs = await SharedPreferences.getInstance();
+			await prefs.setString('student_cached_deals', jsonEncode(_deals.map((e) => e.toJson()).toList()));
+		} catch (_) {}
+	}
+
+	Future<void> _loadCachedDeals() async {
+		try {
+			final prefs = await SharedPreferences.getInstance();
+			final raw = prefs.getString('student_cached_deals');
+			if (raw != null) {
+				final arr = (jsonDecode(raw) as List).cast<Map>();
+				_deals = arr.map((e) => _LocalOffer.fromMap(Map<String, dynamic>.from(e))).toList();
+				if (mounted) setState(() {});
+			}
+		} catch (_) {}
+	}
+
+	Future<List<_LocalOffer>> _loadDealsFromAssets() async {
+		try {
+			final raw = await rootBundle.loadString('assets/data/promotions_mock.json');
+			final arr = (jsonDecode(raw) as List).cast<Map>();
+			return arr.map((e) => _LocalOffer.fromMap(Map<String, dynamic>.from(e))).toList();
+		} catch (_) {
+			return const <_LocalOffer>[];
+		}
+	}
+
+	Widget _buildDealsSection() {
+		return Card(
+			elevation: 2,
+			shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+			child: Padding(
+				padding: const EdgeInsets.all(16),
+				child: Column(
+					crossAxisAlignment: CrossAxisAlignment.start,
+					children: [
+						Row(
+							children: [
+								const Icon(Icons.local_offer_outlined, color: Colors.teal),
+								const SizedBox(width: 8),
+								const Expanded(
+									child: Text('Nearby Supermarket Deals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+								),
+								IconButton(
+									tooltip: 'Refresh',
+									onPressed: _loadingDeals ? null : _refreshDeals,
+									icon: _loadingDeals
+										? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+										: const Icon(Icons.refresh),
+								),
+							],
+						),
+						const SizedBox(height: 8),
+						if (_deals.isEmpty)
+							Text('No deals yet. Pull to refresh or try again later.', style: TextStyle(color: Colors.black.withValues(alpha: 0.7))),
+						..._deals.take(5).map((d) => ListTile(
+							leading: const Icon(Icons.store_mall_directory_outlined),
+							title: Text(d.name),
+							subtitle: Text(d.offer),
+							trailing: d.price != null ? Text(_currency.format(d.price)) : null,
+							onTap: () async {
+								if (d.lat != null && d.lng != null) {
+									final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${d.lat},${d.lng}');
+									if (await canLaunchUrl(url)) { await launchUrl(url, mode: LaunchMode.externalApplication); }
+								}
+							},
+						)),
+					],
+				),
+			),
+		);
+	}
+
+	// ===== Cafeteria & Restaurant Guidance =====
+	Future<void> _loadCafeteriasFromAssets() async {
+		try {
+			final raw = await rootBundle.loadString('assets/data/cafeterias_mock.json');
+			final arr = (jsonDecode(raw) as List).cast<Map>();
+			_cafeterias = arr.map((e) => CafeteriaEntry.fromMap(Map<String, dynamic>.from(e))).toList();
+			if (mounted) setState(() {});
+		} catch (_) {
+			_cafeterias = const [];
+		}
+	}
+
+	Widget _buildCafeteriaGuidanceSection() {
+		return Card(
+			elevation: 2,
+			shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+			child: Padding(
+				padding: const EdgeInsets.all(16),
+				child: Column(
+					crossAxisAlignment: CrossAxisAlignment.start,
+					children: [
+						Row(children: const [
+							Icon(Icons.restaurant_outlined, color: Colors.teal),
+							SizedBox(width: 8),
+							Expanded(child: Text('Cafeteria & Nearby Eateries', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
+						]),
+						const SizedBox(height: 8),
+						Text('Find healthier picks at campus dining or restaurants near you.', style: TextStyle(color: Colors.black.withValues(alpha: 0.7))),
+						const SizedBox(height: 8),
+						SizedBox(
+							width: double.infinity,
+							child: OutlinedButton.icon(
+								onPressed: () async {
+									const query = 'healthy restaurant near me';
+									final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}');
+									if (await canLaunchUrl(url)) { await launchUrl(url, mode: LaunchMode.externalApplication); }
+								},
+								icon: const Icon(Icons.map_outlined),
+								label: const Text('Open in Google Maps'),
+							),
+						),
+						const SizedBox(height: 8),
+						if (_cafeterias.isNotEmpty) const Text('Campus cafeterias', style: TextStyle(fontWeight: FontWeight.w700)),
+						..._cafeterias.take(5).map((c) => ListTile(
+							title: Text(c.name),
+							subtitle: Text(c.healthiest?.join(', ') ?? 'Healthy picks available'),
+							trailing: c.hours != null ? Text(c.hours!) : null,
+							onTap: () async {
+								if (c.url != null) {
+									final uri = Uri.parse(c.url!);
+									if (await canLaunchUrl(uri)) { await launchUrl(uri, mode: LaunchMode.externalApplication); return; }
+								}
+								if (c.lat != null && c.lng != null) {
+									final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}');
+									if (await canLaunchUrl(url)) { await launchUrl(url, mode: LaunchMode.externalApplication); }
+								}
+							},
+						)),
+					],
+				),
+			),
+		);
+	}
+
+	// ===== Social & Gamified =====
+	Widget _buildSocialSection() {
+		return Card(
+			elevation: 2,
+			shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+			child: Padding(
+				padding: const EdgeInsets.all(16),
+				child: Column(
+					crossAxisAlignment: CrossAxisAlignment.start,
+					children: [
+						Row(children: const [
+							Icon(Icons.groups_outlined, color: Colors.teal),
+							SizedBox(width: 8),
+							Expanded(child: Text('Social & Challenges', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
+						]),
+						const SizedBox(height: 8),
+						Wrap(
+							spacing: 8,
+							runSpacing: 8,
+							children: [
+    								ElevatedButton.icon(
+									style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+									onPressed: () => Navigator.of(context).pushNamed(AppRoutes.socialCommunity),
+									icon: const Icon(Icons.flag_outlined),
+									label: const Text('Join a group challenge'),
+								),
+								OutlinedButton.icon(
+									onPressed: () => Navigator.of(context).pushNamed(AppRoutes.socialCommunity),
+									icon: const Icon(Icons.share_outlined),
+									label: const Text('Share a recipe'),
+								),
+								OutlinedButton.icon(
+									onPressed: () => Navigator.of(context).pushNamed(AppRoutes.socialCommunity),
+									icon: const Icon(Icons.emoji_events_outlined),
+									label: const Text('View leaderboard'),
+								),
+							],
+						),
+					],
+				),
+			),
 		);
 	}
 
@@ -602,7 +880,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			if (Firebase.apps.isEmpty) {
 				await Firebase.initializeApp();
 			}
-				final firestore = FirebaseFirestore.instance;
+				final firestore = cf.FirebaseFirestore.instance;
 				final uid = FirebaseAuth.instance.currentUser?.uid;
 
 			final allPools = <MealSuggestion>[..._generated, ..._mentalHealth];
@@ -1013,6 +1291,75 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 		// Neutral formatting without currency symbol to fit any locale
 		return v.toStringAsFixed(0);
 	}
+}
+
+// ===== Support models for this screen =====
+
+class _LocalOffer {
+	final String name;
+	final String offer;
+	final double? price;
+	final double? lat;
+	final double? lng;
+
+	_LocalOffer({required this.name, required this.offer, this.price, this.lat, this.lng});
+
+	factory _LocalOffer.fromMap(Map<String, dynamic> m) {
+		return _LocalOffer(
+			name: (m['name'] ?? 'Market').toString(),
+			offer: (m['offer'] ?? '').toString(),
+			price: (m['price'] is num) ? (m['price'] as num).toDouble() : null,
+			lat: (m['lat'] is num) ? (m['lat'] as num).toDouble() : null,
+			lng: (m['lng'] is num) ? (m['lng'] as num).toDouble() : null,
+		);
+	}
+
+	Map<String, dynamic> toJson() => {
+				'name': name,
+				'offer': offer,
+				'price': price,
+				'lat': lat,
+				'lng': lng,
+			};
+}
+
+class CafeteriaEntry {
+	final String name;
+	final List<String>? healthiest;
+	final String? hours;
+	final String? url;
+	final double? lat;
+	final double? lng;
+
+	CafeteriaEntry({required this.name, this.healthiest, this.hours, this.url, this.lat, this.lng});
+
+	factory CafeteriaEntry.fromMap(Map<String, dynamic> m) => CafeteriaEntry(
+				name: (m['name'] ?? 'Cafeteria').toString(),
+				healthiest: (m['healthiest'] is List)
+						? (m['healthiest'] as List).map((e) => e.toString()).toList()
+						: null,
+				hours: (m['hours'] as String?)?.toString(),
+				url: (m['url'] as String?)?.toString(),
+				lat: (m['lat'] is num) ? (m['lat'] as num).toDouble() : null,
+				lng: (m['lng'] is num) ? (m['lng'] as num).toDouble() : null,
+			);
+}
+
+// ===== Geo helpers (reuse minimal) =====
+extension _GeoHelpers on _StudentFeaturesScreenState {
+	double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
+		const R = 6371.0; // km
+	double dLat = _deg2rad(lat2 - lat1);
+	double dLon = _deg2rad(lon2 - lon1);
+	double a =
+		math.sin(dLat / 2) * math.sin(dLat / 2) +
+			math.cos(_deg2rad(lat1)) * math.cos(_deg2rad(lat2)) *
+				math.sin(dLon / 2) * math.sin(dLon / 2);
+		double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+		return R * c;
+	}
+
+	double _deg2rad(double deg) => deg * (math.pi / 180.0);
 }
 
 class _MealSuggestionCard extends StatelessWidget {

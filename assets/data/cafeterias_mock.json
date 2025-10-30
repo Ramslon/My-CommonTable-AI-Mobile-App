@@ -1,0 +1,24 @@
+[
+  {
+    "name": "Campus Main Dining Hall",
+    "healthiest": ["Grilled chicken salad", "Brown rice bowl", "Veggie stir-fry"],
+    "hours": "8:00–20:00",
+    "lat": 37.422,
+    "lng": -122.084,
+    "url": "https://example.edu/dining/main"
+  },
+  {
+    "name": "Science Cafe",
+    "healthiest": ["Yogurt parfait", "Chickpea wrap", "Tomato soup"],
+    "hours": "7:30–18:00",
+    "lat": 37.4215,
+    "lng": -122.085,
+    "url": "https://example.edu/dining/science-cafe"
+  },
+  {
+    "name": "Student Union Food Court",
+    "healthiest": ["Sushi (salmon/avocado)", "Grain bowl", "Fruit cup"],
+    "hours": "10:00–22:00",
+    "url": "https://example.edu/dining/union"
+  }
+]
