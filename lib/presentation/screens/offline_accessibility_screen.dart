@@ -9,6 +9,11 @@ import 'package:commontable_ai_app/core/services/ai_meal_plan_service.dart';
 import 'package:commontable_ai_app/core/models/meal_plan.dart';
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OfflineAccessibilityScreen extends StatefulWidget {
   const OfflineAccessibilityScreen({super.key});
@@ -23,6 +28,7 @@ class _OfflineAccessibilityScreenState extends State<OfflineAccessibilityScreen>
   double _textScale = 1.0;
   bool _voiceLogging = false;
   bool _busy = false;
+  bool _prefetching = false;
 
   @override
   void initState() {
@@ -124,6 +130,80 @@ class _OfflineAccessibilityScreenState extends State<OfflineAccessibilityScreen>
     }
   }
 
+  Future<void> _prefetchOffers() async {
+    setState(() => _prefetching = true);
+    try {
+      final p = await Connectivity().checkConnectivity();
+      List<Map<String, dynamic>> list = [];
+      if (!p.contains(ConnectivityResult.none)) {
+        try {
+          if (Firebase.apps.isEmpty) { await Firebase.initializeApp(); }
+          final snap = await FirebaseDatabase.instance.ref('local_offers/global').get();
+          final val = snap.value;
+          if (val is List) {
+            list = val.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+          } else if (val is Map) {
+            // Convert map-of-maps to list
+            list = (val.values.whereType<Map>()).map((e) => Map<String, dynamic>.from(e)).toList();
+          }
+        } catch (_) {}
+      }
+      if (list.isEmpty) {
+        // Fallback to bundled mock
+        final raw = await rootBundle.loadString('assets/data/promotions_mock.json');
+        list = (jsonDecode(raw) as List).cast<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cached_offers', jsonEncode(list));
+      await OfflineCacheService().setLastSynced(DateTime.now());
+      final last = await OfflineCacheService().getLastSynced();
+      if (mounted) {
+        setState(() => _lastSynced = last);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Local offers cached for offline use')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to prefetch offers: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _prefetching = false);
+    }
+  }
+
+  Future<void> _prefetchResources() async {
+    setState(() => _prefetching = true);
+    try {
+      final p = await Connectivity().checkConnectivity();
+      List<Map<String, dynamic>> list = [];
+      if (!p.contains(ConnectivityResult.none)) {
+        try {
+          if (Firebase.apps.isEmpty) { await Firebase.initializeApp(); }
+          final col = FirebaseFirestore.instance.collection('assistance_resources');
+          final qs = await col.limit(200).get();
+          list = qs.docs.map((d) => d.data()).toList();
+        } catch (_) {}
+      }
+      if (list.isEmpty) {
+        final raw = await rootBundle.loadString('assets/data/resources_mock.json');
+        list = (jsonDecode(raw) as List).cast<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cached_resources', jsonEncode(list));
+      await OfflineCacheService().setLastSynced(DateTime.now());
+      final last = await OfflineCacheService().getLastSynced();
+      if (mounted) {
+        setState(() => _lastSynced = last);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Resources cached for offline use')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to prefetch resources: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _prefetching = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final lastStr = _lastSynced != null ? 'Last synced: ${_lastSynced!.toLocal()}' : 'Never synced';
@@ -170,6 +250,16 @@ class _OfflineAccessibilityScreenState extends State<OfflineAccessibilityScreen>
                   onPressed: _downloadAiInsights,
                   icon: const Icon(Icons.lightbulb),
                   label: const Text('Basic AI Insights'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _prefetching ? null : _prefetchOffers,
+                  icon: const Icon(Icons.local_offer),
+                  label: Text(_prefetching ? 'Prefetching…' : 'Local Offers'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _prefetching ? null : _prefetchResources,
+                  icon: const Icon(Icons.handshake),
+                  label: Text(_prefetching ? 'Prefetching…' : 'Resources & Assistance'),
                 ),
               ],
             ),

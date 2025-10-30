@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -80,17 +81,29 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 				if (_offers.isEmpty) {
 					// fallback to bundled mock
 					final list = await _loadOffersFromAssets();
-					setState(() { _offers = list; });
+								var sorted = list;
+								if (_position != null) {
+									sorted = [...list];
+									sorted.sort((a, b) => _compareByDistanceOffer(a, b));
+									sorted = _filterWithinRadiusOffers(sorted, 50);
+								}
+								setState(() { _offers = sorted; });
 				}
 				setState(() { _loadingOffers = false; });
 				return;
 			}
 			final conn = await Connectivity().checkConnectivity();
 			if (conn.contains(ConnectivityResult.none)) {
-				if (_offers.isEmpty) {
-					final list = await _loadOffersFromAssets();
-					setState(() { _offers = list; });
-				}
+								if (_offers.isEmpty) {
+										final list = await _loadOffersFromAssets();
+										var sorted = list;
+										if (_position != null) {
+											sorted = [...list];
+											sorted.sort((a, b) => _compareByDistanceOffer(a, b));
+											sorted = _filterWithinRadiusOffers(sorted, 50);
+										}
+										setState(() { _offers = sorted; });
+								}
 				setState(() { _loadingOffers = false; });
 				return;
 			}
@@ -107,14 +120,26 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 					if (item is Map) list.add(_LocalOffer.fromMap(Map<String, dynamic>.from(item)));
 				});
 			}
-			setState(() { _offers = list; });
+						var sorted = list;
+						if (_position != null) {
+							sorted = [...list];
+							sorted.sort((a, b) => _compareByDistanceOffer(a, b));
+							sorted = _filterWithinRadiusOffers(sorted, 50);
+						}
+						setState(() { _offers = sorted; });
 			await _cacheOffers();
 		} catch (_) {
 			// silently rely on cache or assets
-			if (_offers.isEmpty) {
-				final list = await _loadOffersFromAssets();
-				setState(() { _offers = list; });
-			}
+						if (_offers.isEmpty) {
+								final list = await _loadOffersFromAssets();
+								var sorted = list;
+								if (_position != null) {
+									sorted = [...list];
+									sorted.sort((a, b) => _compareByDistanceOffer(a, b));
+									sorted = _filterWithinRadiusOffers(sorted, 50);
+								}
+								setState(() { _offers = sorted; });
+						}
 		} finally {
 			if (mounted) setState(() { _loadingOffers = false; });
 		}
@@ -174,18 +199,36 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 			for (final d in qs.docs) {
 				list.add(_LocalResource.fromMap(d.data()));
 			}
-			if (list.isEmpty) {
-				final assets = await _loadResourcesFromAssets();
-				setState(() { _resources = assets; });
-			} else {
-				setState(() { _resources = list; });
-			}
+						if (list.isEmpty) {
+								final assets = await _loadResourcesFromAssets();
+								var sorted = assets;
+								if (_position != null) {
+									sorted = [...assets];
+									sorted.sort((a, b) => _compareByDistanceResource(a, b));
+									sorted = _filterWithinRadiusResources(sorted, 50);
+								}
+								setState(() { _resources = sorted; });
+						} else {
+								var sorted = list;
+								if (_position != null) {
+									sorted = [...list];
+									sorted.sort((a, b) => _compareByDistanceResource(a, b));
+									sorted = _filterWithinRadiusResources(sorted, 50);
+								}
+								setState(() { _resources = sorted; });
+						}
 			await _cacheResources();
 		} catch (_) {
-			if (_resources.isEmpty) {
-				final assets = await _loadResourcesFromAssets();
-				setState(() { _resources = assets; });
-			}
+						if (_resources.isEmpty) {
+								final assets = await _loadResourcesFromAssets();
+								var sorted = assets;
+								if (_position != null) {
+									sorted = [...assets];
+									sorted.sort((a, b) => _compareByDistanceResource(a, b));
+									sorted = _filterWithinRadiusResources(sorted, 50);
+								}
+								setState(() { _resources = sorted; });
+						}
 		} finally {
 			if (mounted) setState(() { _loadingResources = false; });
 		}
@@ -387,7 +430,10 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 							),
 						);
 					}
-					final r = _resources[index - 1];
+					  final r = _resources[index - 1];
+					  final distanceText = _position != null && r.lat != null && r.lng != null
+						  ? '${_distanceKm(_position!.latitude, _position!.longitude, r.lat!, r.lng!).toStringAsFixed(1)} km'
+						  : null;
 					final icon = switch (r.type) {
 						'food_bank' => Icons.volunteer_activism,
 						'community_garden' => Icons.grass,
@@ -398,7 +444,7 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 						child: ListTile(
 							leading: Icon(icon),
 							title: Text(r.name),
-							subtitle: Text(r.address ?? ''),
+							  subtitle: Text(((r.address ?? '') + (distanceText != null ? '  •  $distanceText' : '')).trim()),
 							trailing: r.phone != null ? IconButton(
 								icon: const Icon(Icons.call),
 								onPressed: () async {
@@ -543,13 +589,16 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 							),
 						);
 					}
-					final o = _offers[index - 1];
-					return Card(
+								final o = _offers[index - 1];
+								final distanceText = _position != null && o.lat != null && o.lng != null
+										? '${_distanceKm(_position!.latitude, _position!.longitude, o.lat!, o.lng!).toStringAsFixed(1)} km'
+										: null;
+								return Card(
 						child: ListTile(
 							leading: const Icon(Icons.store),
 							title: Text(o.name),
-							subtitle: Text(o.offer),
-							trailing: o.price != null ? Text(_currency.format(o.price)) : null,
+										subtitle: Text(o.offer + (distanceText != null ? '  •  $distanceText' : '')),
+										trailing: o.price != null ? Text(_currency.format(o.price)) : (distanceText != null ? Text(distanceText) : null),
 							onTap: () async {
 								if (o.lat != null && o.lng != null) {
 									final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${o.lat},${o.lng}');
@@ -754,5 +803,62 @@ class _LocalResource {
 		'lat': lat,
 		'lng': lng,
 	};
+}
+
+// ==== Geo helpers for sorting and filtering ====
+extension _GeoHelpers on _LowIncomeFeaturesScreenState {
+	double _distanceKm(double lat1, double lon1, double lat2, double lon2) {
+		const R = 6371.0; // km
+		double dLat = _deg2rad(lat2 - lat1);
+		double dLon = _deg2rad(lon2 - lon1);
+		double a =
+				math.sin(dLat / 2) * math.sin(dLat / 2) +
+				math.cos(_deg2rad(lat1)) * math.cos(_deg2rad(lat2)) *
+						math.sin(dLon / 2) * math.sin(dLon / 2);
+		double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+		return R * c;
+	}
+
+	double _deg2rad(double deg) => deg * (math.pi / 180.0);
+
+	int _compareByDistanceOffer(_LocalOffer a, _LocalOffer b) {
+		if (_position == null) return 0;
+		final pa = (a.lat != null && a.lng != null)
+				? _distanceKm(_position!.latitude, _position!.longitude, a.lat!, a.lng!)
+				: double.infinity;
+		final pb = (b.lat != null && b.lng != null)
+				? _distanceKm(_position!.latitude, _position!.longitude, b.lat!, b.lng!)
+				: double.infinity;
+		return pa.compareTo(pb);
+	}
+
+	int _compareByDistanceResource(_LocalResource a, _LocalResource b) {
+		if (_position == null) return 0;
+		final pa = (a.lat != null && a.lng != null)
+				? _distanceKm(_position!.latitude, _position!.longitude, a.lat!, a.lng!)
+				: double.infinity;
+		final pb = (b.lat != null && b.lng != null)
+				? _distanceKm(_position!.latitude, _position!.longitude, b.lat!, b.lng!)
+				: double.infinity;
+		return pa.compareTo(pb);
+	}
+
+	List<_LocalOffer> _filterWithinRadiusOffers(List<_LocalOffer> list, double radiusKm) {
+		if (_position == null) return list;
+		final filtered = list.where((o) {
+			if (o.lat == null || o.lng == null) return true; // keep unlocated items
+			return _distanceKm(_position!.latitude, _position!.longitude, o.lat!, o.lng!) <= radiusKm;
+		}).toList();
+		return filtered.isEmpty ? list : filtered;
+	}
+
+	List<_LocalResource> _filterWithinRadiusResources(List<_LocalResource> list, double radiusKm) {
+		if (_position == null) return list;
+		final filtered = list.where((r) {
+			if (r.lat == null || r.lng == null) return true;
+			return _distanceKm(_position!.latitude, _position!.longitude, r.lat!, r.lng!) <= radiusKm;
+		}).toList();
+		return filtered.isEmpty ? list : filtered;
+	}
 }
 
