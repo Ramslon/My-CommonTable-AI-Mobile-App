@@ -43,6 +43,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	List<_LocalOffer> _deals = [];
 	Position? _position;
 	List<CafeteriaEntry> _cafeterias = [];
+	bool _loadingCafeterias = false;
 	// Nearby eateries (Places)
 	bool _loadingEateries = false;
 	List<EateryResult> _eateries = [];
@@ -379,6 +380,12 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			}
 			setState(() => _deals = _sortByDistance(list));
 			await _cacheDeals();
+		} on TimeoutException {
+			if (_deals.isEmpty) {
+				final list = await _loadDealsFromAssets();
+				setState(() => _deals = _sortByDistance(list));
+			}
+			_notify('Deals request timed out — showing offline results');
 		} catch (_) {
 			if (_deals.isEmpty) {
 				final list = await _loadDealsFromAssets();
@@ -535,7 +542,19 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 							),
 						),
 						const SizedBox(height: 8),
-						if (_cafeterias.isNotEmpty) const Text('Campus cafeterias', style: TextStyle(fontWeight: FontWeight.w700)),
+						if (_cafeterias.isNotEmpty)
+							Row(
+								children: [
+									const Expanded(child: Text('Campus cafeterias', style: TextStyle(fontWeight: FontWeight.w700))),
+									IconButton(
+										onPressed: _loadingCafeterias ? null : _refreshCafeterias,
+										icon: _loadingCafeterias
+											? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+											: const Icon(Icons.refresh),
+										tooltip: 'Reload cafeterias',
+									),
+								],
+							),
 						..._cafeterias.take(5).map((c) => ListTile(
 							title: Text(c.name),
 							subtitle: Text(c.healthiest?.join(', ') ?? 'Healthy picks available'),
@@ -589,10 +608,24 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				}
 				setState(() => _eateries = list);
 			}
+		} on TimeoutException {
+			_notify('Nearby eateries request timed out');
 		} catch (_) {
 			// ignore errors; keep empty state
 		} finally {
 			if (mounted) setState(() => _loadingEateries = false);
+		}
+	}
+
+	Future<void> _refreshCafeterias() async {
+		setState(() => _loadingCafeterias = true);
+		try {
+			await _loadCafeteriasFromAssets();
+			_notify('Cafeterias refreshed');
+		} catch (_) {
+			_notify('Failed to refresh cafeterias');
+		} finally {
+			if (mounted) setState(() => _loadingCafeterias = false);
 		}
 	}
 
@@ -612,6 +645,15 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 			}
 		} catch (_) {}
 		return false;
+	}
+
+	void _notify(String message) {
+		if (!mounted) return;
+		final messenger = ScaffoldMessenger.of(context);
+		messenger.hideCurrentSnackBar();
+		messenger.showSnackBar(
+			SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+		);
 	}
 
 	// ===== Social & Gamified =====
