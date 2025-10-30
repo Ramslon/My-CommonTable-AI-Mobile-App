@@ -62,5 +62,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Allow visibility of partner apps for deep links / canLaunchUrl -->
+        <package android:name="com.google.android.apps.fitness" />
+        <package android:name="com.fitbit.FitbitMobile" />
+        <package android:name="com.garmin.android.apps.connectmobile" />
+        <package android:name="com.withings.wiscale2" />
     </queries>
 </manifest>
