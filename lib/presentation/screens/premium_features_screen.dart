@@ -44,6 +44,8 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
   StreamSubscription<List<ChatMessage>>? _chatSub;
 	String? _typingText; // live streaming assistant text (not yet saved)
 	bool _assistantTyping = false;
+	bool _historyAvailable = true; // fall back to local-only chat if history not accessible
+	bool _historyErrorShown = false;
 
 	String get _sessionId => 'topic:${_topic.name}';
 
@@ -76,6 +78,7 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 					(items) {
 						if (!mounted) return;
 						setState(() {
+								_historyAvailable = true;
 							_msgs
 								..clear()
 								..addAll(items.map((m) => _Msg(m.text, m.role == 'user')));
@@ -90,9 +93,16 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 					onError: (e) {
 						// Avoid unhandled exceptions from permission-denied
 						if (!mounted) return;
-						ScaffoldMessenger.of(context).showSnackBar(
-							SnackBar(content: Text('Chat history unavailable: ${e is FirebaseException ? e.message ?? e.code : e.toString()}')),
-						);
+							setState(() {
+								_historyAvailable = false;
+								_msgs.clear();
+							});
+							if (!_historyErrorShown) {
+								_historyErrorShown = true;
+								ScaffoldMessenger.of(context).showSnackBar(
+									SnackBar(content: Text('Chat history unavailable: ${e is FirebaseException ? e.message ?? e.code : e.toString()}')),
+								);
+							}
 					},
 				);
 	}
@@ -246,22 +256,41 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 		_controller.clear();
 
 		final uid = _uid;
-		if (uid == null) {
+			if (uid == null || !_historyAvailable) {
 			// Fallback to local-only chat when not signed in
 			setState(() => _msgs.add(_Msg(trimmed, true)));
 			try {
 				final turns = _msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)).toList();
-				final reply = await _chat.reply(history: turns, topic: _topic);
-				setState(() => _msgs.add(_Msg(reply.text, false)));
+					// Stream if possible for better UX; otherwise single reply
+					setState(() { _assistantTyping = true; _typingText = ''; });
+					bool streamed = false;
+					try {
+						await for (final delta in _chat.replyStream(history: turns, topic: _topic)) {
+							streamed = true;
+							if (!mounted) break;
+							setState(() { _typingText = delta.text; _assistantTyping = !delta.done; });
+							if (delta.done) break;
+						}
+					} catch (_) {/* ignore and fall back */}
+					if (!streamed) {
+						final reply = await _chat.reply(history: turns, topic: _topic);
+						setState(() { _typingText = reply.text; _assistantTyping = false; });
+					}
+					final finalText = (_typingText ?? '').trim();
+					if (finalText.isNotEmpty) {
+						setState(() { _msgs.add(_Msg(finalText, false)); _typingText = null; });
+					} else {
+						setState(() { _typingText = null; _assistantTyping = false; });
+					}
 			} catch (e) {
-				setState(() => _msgs.add(_Msg('Sorry, I cannot respond right now. ($e)', false)));
+					setState(() { _assistantTyping = false; _typingText = null; _msgs.add(_Msg('Sorry, I cannot respond right now. ($e)', false)); });
 			}
 			return;
 		}
 
 		// Signed-in: write to Firestore and rely on stream to render
-		try {
-				await _history.addMessage(userId: uid, role: 'user', text: trimmed, topic: _topic.name, sessionId: _sessionId);
+			try {
+					await _history.addMessage(userId: uid, role: 'user', text: trimmed, topic: _topic.name, sessionId: _sessionId);
 				// Build context including the just-sent user message for immediate LLM context
 				final turns = [
 					..._msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)),
@@ -278,15 +307,35 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 					await _history.addMessage(userId: uid, role: 'assistant', text: finalText.trim(), topic: _topic.name, sessionId: _sessionId);
 				}
 				if (mounted) setState(() { _typingText = null; _assistantTyping = false; });
-		} catch (e) {
-			if (!mounted) return;
-			ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chat failed: $e')));
+			} catch (e) {
+				if (!mounted) return;
+				// If saving or streaming via history fails (e.g., permission), switch to local-only fallback
+				setState(() { _historyAvailable = false; });
+				ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Chat failed (using local mode): $e')));
+				// Fallback local streaming
+				setState(() { _msgs.add(_Msg(trimmed, true)); _assistantTyping = true; _typingText = ''; });
+				try {
+					final turns = _msgs.map((m) => ChatTurn(role: m.isUser ? 'user' : 'assistant', content: m.text)).toList();
+					await for (final delta in _chat.replyStream(history: turns, topic: _topic)) {
+						if (!mounted) break;
+						setState(() { _typingText = delta.text; _assistantTyping = !delta.done; });
+						if (delta.done) break;
+					}
+					final finalText = (_typingText ?? '').trim();
+					if (finalText.isNotEmpty) {
+						setState(() { _msgs.add(_Msg(finalText, false)); });
+					}
+				} catch (_) {
+					// already surfaced
+				} finally {
+					if (mounted) setState(() { _typingText = null; _assistantTyping = false; });
+				}
 		}
 	}
 
 		Future<void> _clearChat() async {
 			final uid = _uid;
-			if (uid == null) {
+				if (uid == null) {
 				ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sign in to clear chat history.')));
 				return;
 			}
@@ -303,9 +352,15 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 			);
 			if (ok != true) return;
 			try {
-				final n = await _history.clear(userId: uid, sessionId: _sessionId);
-				if (!mounted) return;
-				ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted $n messages.')));
+					int n = 0;
+					if (_historyAvailable) {
+						n = await _history.clear(userId: uid, sessionId: _sessionId);
+					} else {
+						n = _msgs.length;
+					}
+					if (mounted) setState(() { _msgs.clear(); _typingText = null; _assistantTyping = false; });
+					if (!mounted) return;
+					ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Deleted $n messages.')));
 			} catch (e) {
 				if (!mounted) return;
 				ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to clear: $e')));
