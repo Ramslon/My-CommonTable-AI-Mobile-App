@@ -13,6 +13,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 class LowIncomeFeaturesScreen extends StatefulWidget {
 	const LowIncomeFeaturesScreen({super.key});
@@ -25,9 +26,11 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 	final _budgetCtrl = TextEditingController(text: '5.00');
 	final _currency = NumberFormat.simpleCurrency();
 	bool _loadingOffers = false;
+	bool _loadingResources = false;
 	bool _recommending = false;
 	List<_AffordableMeal> _meals = [];
 	List<_LocalOffer> _offers = [];
+	List<_LocalResource> _resources = [];
 		Position? _position;
 		Set<Marker> _markers = {};
 
@@ -45,6 +48,8 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 		}
 		await _loadCachedOffers();
 		await _refreshOffers();
+		await _loadCachedResources();
+		await _refreshResources();
 		await _resolveLocation();
 		await _loadMapMarkers();
 	}
@@ -72,11 +77,20 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 			final p = await PrivacySettingsService().load();
 			if (p.offlineMode) {
 				// Respect offline mode: rely on cache only
+				if (_offers.isEmpty) {
+					// fallback to bundled mock
+					final list = await _loadOffersFromAssets();
+					setState(() { _offers = list; });
+				}
 				setState(() { _loadingOffers = false; });
 				return;
 			}
 			final conn = await Connectivity().checkConnectivity();
 			if (conn.contains(ConnectivityResult.none)) {
+				if (_offers.isEmpty) {
+					final list = await _loadOffersFromAssets();
+					setState(() { _offers = list; });
+				}
 				setState(() { _loadingOffers = false; });
 				return;
 			}
@@ -96,10 +110,22 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 			setState(() { _offers = list; });
 			await _cacheOffers();
 		} catch (_) {
-			// silently rely on cache
+			// silently rely on cache or assets
+			if (_offers.isEmpty) {
+				final list = await _loadOffersFromAssets();
+				setState(() { _offers = list; });
+			}
 		} finally {
 			if (mounted) setState(() { _loadingOffers = false; });
 		}
+	}
+
+	Future<List<_LocalOffer>> _loadOffersFromAssets() async {
+		try {
+			final raw = await rootBundle.loadString('assets/data/promotions_mock.json');
+			final arr = (jsonDecode(raw) as List).cast<Map>();
+			return arr.map((e) => _LocalOffer.fromMap(Map<String, dynamic>.from(e))).toList();
+		} catch (_) { return const <_LocalOffer>[]; }
 	}
 
 	Future<void> _cacheOffers() async {
@@ -120,6 +146,77 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 				setState(() { _offers = list; });
 			}
 		} catch (_) {}
+	}
+
+	Future<void> _refreshResources() async {
+		setState(() { _loadingResources = true; });
+		try {
+			final p = await PrivacySettingsService().load();
+			if (p.offlineMode) {
+				if (_resources.isEmpty) {
+					final list = await _loadResourcesFromAssets();
+					setState(() { _resources = list; });
+				}
+				return;
+			}
+			final conn = await Connectivity().checkConnectivity();
+			if (conn.contains(ConnectivityResult.none)) {
+				if (_resources.isEmpty) {
+					final list = await _loadResourcesFromAssets();
+					setState(() { _resources = list; });
+				}
+				return;
+			}
+			// Prefer Firestore collection if available
+			final col = FirebaseFirestore.instance.collection('assistance_resources');
+			final qs = await col.limit(200).get();
+			final list = <_LocalResource>[];
+			for (final d in qs.docs) {
+				list.add(_LocalResource.fromMap(d.data()));
+			}
+			if (list.isEmpty) {
+				final assets = await _loadResourcesFromAssets();
+				setState(() { _resources = assets; });
+			} else {
+				setState(() { _resources = list; });
+			}
+			await _cacheResources();
+		} catch (_) {
+			if (_resources.isEmpty) {
+				final assets = await _loadResourcesFromAssets();
+				setState(() { _resources = assets; });
+			}
+		} finally {
+			if (mounted) setState(() { _loadingResources = false; });
+		}
+	}
+
+	Future<void> _cacheResources() async {
+		try {
+			final prefs = await SharedPreferences.getInstance();
+			final encoded = jsonEncode(_resources.map((e) => e.toJson()).toList());
+			await prefs.setString('cached_resources', encoded);
+			await prefs.setInt('cached_resources_ts', DateTime.now().millisecondsSinceEpoch);
+		} catch (_) {}
+	}
+
+	Future<void> _loadCachedResources() async {
+		try {
+			final prefs = await SharedPreferences.getInstance();
+			final raw = prefs.getString('cached_resources');
+			if (raw != null) {
+				final list = (jsonDecode(raw) as List).cast<Map>().map((m) => _LocalResource.fromMap(Map<String, dynamic>.from(m))).toList();
+				setState(() { _resources = list; });
+			}
+		} catch (_) {}
+	}
+
+	Future<List<_LocalResource>> _loadResourcesFromAssets() async {
+		try {
+			final raw = await rootBundle.loadString('assets/data/resources_mock.json');
+			final arr = (jsonDecode(raw) as List).cast<Map>();
+			return arr.map((e) => _LocalResource.fromMap(Map<String, dynamic>.from(e))).toList();
+		} catch (_) { return const <_LocalResource>[]; }
 	}
 
 	// Simulated AI: given budget, propose 3 affordable, healthy meal options.
@@ -236,7 +333,7 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 				foregroundColor: Colors.white,
 			),
 			body: DefaultTabController(
-				length: 3,
+				length: 4,
 				child: Column(
 					children: [
 						const TabBar(
@@ -244,6 +341,7 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 								Tab(icon: Icon(Icons.restaurant), text: 'Meals'),
 								Tab(icon: Icon(Icons.local_offer), text: 'Offers'),
 								Tab(icon: Icon(Icons.map), text: 'Food Banks'),
+								Tab(icon: Icon(Icons.handshake), text: 'Resources'),
 							],
 							labelColor: Colors.green,
 							unselectedLabelColor: Colors.black54,
@@ -254,6 +352,7 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 									_buildMealsTab(),
 									_buildOffersTab(),
 									_buildMapTab(),
+									_buildResourcesTab(),
 								],
 							),
 						),
@@ -265,6 +364,61 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 				label: Text(_recommending ? 'Recommending…' : 'Recommend Meals'),
 				icon: const Icon(Icons.auto_awesome),
 				backgroundColor: Colors.green,
+			),
+		);
+	}
+
+	Widget _buildResourcesTab() {
+		return RefreshIndicator(
+			onRefresh: () async { await _refreshResources(); },
+			child: ListView.builder(
+				padding: const EdgeInsets.all(16),
+				itemCount: _resources.length + 1,
+				itemBuilder: (context, index) {
+					if (index == 0) {
+						return Padding(
+							padding: const EdgeInsets.only(bottom: 12.0),
+							child: Row(
+								children: [
+									const Expanded(child: Text('Resources & Assistance', style: TextStyle(fontWeight: FontWeight.w700))),
+									if (_loadingResources) const SizedBox(width: 12),
+									if (_loadingResources) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+								],
+							),
+						);
+					}
+					final r = _resources[index - 1];
+					final icon = switch (r.type) {
+						'food_bank' => Icons.volunteer_activism,
+						'community_garden' => Icons.grass,
+						'aid_program' => Icons.support,
+						_ => Icons.place,
+					};
+					return Card(
+						child: ListTile(
+							leading: Icon(icon),
+							title: Text(r.name),
+							subtitle: Text(r.address ?? ''),
+							trailing: r.phone != null ? IconButton(
+								icon: const Icon(Icons.call),
+								onPressed: () async {
+									final uri = Uri.parse('tel:${r.phone}');
+									if (await canLaunchUrl(uri)) { await launchUrl(uri); }
+								},
+							) : null,
+							onTap: () async {
+								if (r.url != null) {
+									final uri = Uri.parse(r.url!);
+									if (await canLaunchUrl(uri)) { await launchUrl(uri, mode: LaunchMode.externalApplication); return; }
+								}
+								if (r.lat != null && r.lng != null) {
+									final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}');
+									if (await canLaunchUrl(url)) { await launchUrl(url, mode: LaunchMode.externalApplication); }
+								}
+							},
+						),
+					);
+				},
 			),
 		);
 	}
@@ -563,6 +717,40 @@ class _LocalOffer {
 		'name': name,
 		'offer': offer,
 		'price': price,
+		'lat': lat,
+		'lng': lng,
+	};
+}
+
+class _LocalResource {
+	final String type; // food_bank | community_garden | aid_program
+	final String name;
+	final String? address;
+	final String? phone;
+	final String? url;
+	final double? lat;
+	final double? lng;
+
+	_LocalResource({required this.type, required this.name, this.address, this.phone, this.url, this.lat, this.lng});
+
+	factory _LocalResource.fromMap(Map<String, dynamic> m) {
+		return _LocalResource(
+			type: (m['type'] ?? 'resource').toString(),
+			name: (m['name'] ?? 'Resource').toString(),
+			address: (m['address'] as String?)?.toString(),
+			phone: (m['phone'] as String?)?.toString(),
+			url: (m['url'] as String?)?.toString(),
+			lat: (m['lat'] is num) ? (m['lat'] as num).toDouble() : null,
+			lng: (m['lng'] is num) ? (m['lng'] as num).toDouble() : null,
+		);
+	}
+
+	Map<String, dynamic> toJson() => {
+		'type': type,
+		'name': name,
+		'address': address,
+		'phone': phone,
+		'url': url,
 		'lat': lat,
 		'lng': lng,
 	};

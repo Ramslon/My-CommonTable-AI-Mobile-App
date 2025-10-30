@@ -1,0 +1,29 @@
+[
+  {
+    "type": "food_bank",
+    "name": "Downtown Community Food Bank",
+    "address": "123 Market St",
+    "lat": 37.7749,
+    "lng": -122.4194,
+    "phone": "+1-555-0100",
+    "url": "https://example.org/foodbank"
+  },
+  {
+    "type": "community_garden",
+    "name": "Hope Community Garden",
+    "address": "45 Greenway Ave",
+    "lat": 37.7762,
+    "lng": -122.421,
+    "phone": "+1-555-0101",
+    "url": "https://example.org/garden"
+  },
+  {
+    "type": "aid_program",
+    "name": "SNAP Enrollment Center",
+    "address": "200 Civic Plaza",
+    "lat": 37.7731,
+    "lng": -122.4183,
+    "phone": "+1-800-221-5689",
+    "url": "https://www.fns.usda.gov/snap/state-directory"
+  }
+]

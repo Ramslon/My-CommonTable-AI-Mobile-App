@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Mama Fresh Market",
+    "offer": "Bananas 20% off",
+    "price": 0.49,
+    "lat": 37.775,
+    "lng": -122.418
+  },
+  {
+    "name": "Neighborhood Grocer",
+    "offer": "Brown rice 2kg - 15% off",
+    "price": 3.99,
+    "lat": 37.776,
+    "lng": -122.417
+  },
+  {
+    "name": "Budget Foods",
+    "offer": "Mixed beans 1kg - 10% off",
+    "price": 1.79,
+    "lat": 37.777,
+    "lng": -122.416
+  }
+]
