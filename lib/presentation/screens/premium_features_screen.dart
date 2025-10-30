@@ -388,6 +388,16 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 						const SizedBox(height: 8),
 						_benefitTile(Icons.support_agent, '1:1 Coaching', 'Personal guidance, check-ins, and tailored nudges.'),
 						_benefitTile(Icons.delivery_dining, 'Healthy Meal Delivery', 'Curated options that match your plan.'),
+						_benefitTile(
+							Icons.health_and_safety,
+							'Integration with Premium Health Devices',
+							'Syncs with CGMs, smart scales, wearables, and other advanced devices for precise nutrition tracking.',
+						),
+						_benefitTile(
+							Icons.shopping_cart_checkout,
+							'Personalized Meal Delivery & Smart Grocery Lists',
+							'Generates optimized weekly plans and auto-syncs grocery lists with delivery services.',
+						),
 						_benefitTile(Icons.biotech, 'Genetic Insights', 'Optional DNA-based nutrition insights.'),
 
 						const SizedBox(height: 20),
