@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:http/http.dart' as http;
 import 'package:commontable_ai_app/core/services/nutrition_insights_service.dart';
 import 'package:commontable_ai_app/core/services/app_settings.dart';
 import 'package:commontable_ai_app/routes/app_route.dart';
@@ -41,6 +42,10 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 	List<_LocalOffer> _deals = [];
 	Position? _position;
 	List<CafeteriaEntry> _cafeterias = [];
+	// Nearby eateries (Places)
+	bool _loadingEateries = false;
+	List<EateryResult> _eateries = [];
+	static const String _mapsKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
 
 	late List<MealSuggestion> _allSuggestions;
 	late List<MealSuggestion> _mentalHealth; // curated list: mood-boosting, stress-reducing
@@ -79,6 +84,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 		await _refreshDeals();
 		await _resolveLocation();
 		await _loadCafeteriasFromAssets();
+		await _searchEateries();
 	}
 
 	Future<void> _loadRecentMoodLogs() async {
@@ -495,16 +501,34 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 						const SizedBox(height: 8),
 						Text('Find healthier picks at campus dining or restaurants near you.', style: TextStyle(color: Colors.black.withValues(alpha: 0.7))),
 						const SizedBox(height: 8),
-						SizedBox(
-							width: double.infinity,
-							child: OutlinedButton.icon(
-								onPressed: () async {
-									const query = 'healthy restaurant near me';
-									final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(query)}');
-									if (await canLaunchUrl(url)) { await launchUrl(url, mode: LaunchMode.externalApplication); }
+						Row(
+							children: [
+								const Expanded(
+									child: Text('Nearby eateries', style: TextStyle(fontWeight: FontWeight.w700)),
+								),
+								IconButton(
+									onPressed: _loadingEateries ? null : _searchEateries,
+									icon: _loadingEateries
+										? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+										: const Icon(Icons.refresh),
+									tooltip: 'Refresh nearby',
+								),
+							],
+						),
+						if (_eateries.isEmpty)
+							Text('No nearby results yet.', style: TextStyle(color: Colors.black.withValues(alpha: 0.7))),
+						..._eateries.take(6).map(
+							(e) => ListTile(
+								leading: const Icon(Icons.local_dining_outlined),
+								title: Text(e.name),
+								subtitle: Text(_formatEaterySubtitle(e)),
+								trailing: e.rating != null ? _RatingChip(rating: e.rating!, count: e.userRatingsTotal) : null,
+								onTap: () async {
+									if (e.lat != null && e.lng != null) {
+										final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}');
+										if (await canLaunchUrl(url)) { await launchUrl(url, mode: LaunchMode.externalApplication); }
+									}
 								},
-								icon: const Icon(Icons.map_outlined),
-								label: const Text('Open in Google Maps'),
 							),
 						),
 						const SizedBox(height: 8),
@@ -528,6 +552,46 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
 				),
 			),
 		);
+	}
+
+	String _formatEaterySubtitle(EateryResult e) {
+		final bits = <String>[];
+		if (e.priceLevel != null) bits.add('£' * e.priceLevel!.clamp(1, 4));
+		if (e.openNow != null) bits.add(e.openNow! ? 'Open now' : 'Closed');
+		if (e.formattedAddress != null) bits.add(e.formattedAddress!);
+		return bits.join(' • ');
+	}
+
+	Future<void> _searchEateries() async {
+		if (_mapsKey.isEmpty) return;
+		setState(() => _loadingEateries = true);
+		try {
+			final conn = await Connectivity().checkConnectivity();
+			if (conn.contains(ConnectivityResult.none)) return;
+			final params = <String, String>{
+				'query': 'healthy restaurant near me',
+				'key': _mapsKey,
+			};
+			if (_position != null) {
+				params['location'] = '${_position!.latitude},${_position!.longitude}';
+				params['radius'] = '5000';
+			}
+			final uri = Uri.https('maps.googleapis.com', '/maps/api/place/textsearch/json', params);
+			final res = await http.get(uri);
+			if (res.statusCode == 200) {
+				final data = jsonDecode(res.body) as Map<String, dynamic>;
+				final results = (data['results'] as List?) ?? [];
+				final list = <EateryResult>[];
+				for (final r in results) {
+					if (r is Map) list.add(EateryResult.fromMap(Map<String, dynamic>.from(r)));
+				}
+				setState(() => _eateries = list);
+			}
+		} catch (_) {
+			// ignore errors; keep empty state
+		} finally {
+			if (mounted) setState(() => _loadingEateries = false);
+		}
 	}
 
 	// ===== Social & Gamified =====
@@ -1361,6 +1425,72 @@ extension _GeoHelpers on _StudentFeaturesScreenState {
 
 	double _deg2rad(double deg) => deg * (math.pi / 180.0);
 }
+
+	class EateryResult {
+		final String name;
+		final String? formattedAddress;
+		final double? rating;
+		final int? userRatingsTotal;
+		final bool? openNow;
+		final int? priceLevel;
+		final double? lat;
+		final double? lng;
+
+		EateryResult({
+			required this.name,
+			this.formattedAddress,
+			this.rating,
+			this.userRatingsTotal,
+			this.openNow,
+			this.priceLevel,
+			this.lat,
+			this.lng,
+		});
+
+		factory EateryResult.fromMap(Map<String, dynamic> m) {
+			final geometry = m['geometry'] as Map<String, dynamic>?;
+			final loc = geometry?['location'] as Map<String, dynamic>?;
+			final openingHours = m['opening_hours'] as Map<String, dynamic>?;
+			return EateryResult(
+				name: (m['name'] ?? 'Restaurant').toString(),
+				formattedAddress: (m['formatted_address'] as String?)?.toString(),
+				rating: (m['rating'] is num) ? (m['rating'] as num).toDouble() : null,
+				userRatingsTotal: (m['user_ratings_total'] as num?)?.toInt(),
+				openNow: (openingHours?['open_now'] as bool?),
+				priceLevel: (m['price_level'] as num?)?.toInt(),
+				lat: (loc?['lat'] is num) ? (loc?['lat'] as num).toDouble() : null,
+				lng: (loc?['lng'] is num) ? (loc?['lng'] as num).toDouble() : null,
+			);
+		}
+	}
+
+	class _RatingChip extends StatelessWidget {
+		final double rating;
+		final int? count;
+		const _RatingChip({required this.rating, this.count});
+
+		@override
+		Widget build(BuildContext context) {
+			return Container(
+				padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+				decoration: BoxDecoration(
+					color: Colors.teal.withValues(alpha: 0.1),
+					borderRadius: BorderRadius.circular(12),
+				),
+				child: Row(
+					mainAxisSize: MainAxisSize.min,
+					children: [
+						const Icon(Icons.star, color: Colors.amber, size: 16),
+						const SizedBox(width: 4),
+						Text(
+							rating.toStringAsFixed(1) + (count != null ? ' (${count})' : ''),
+							style: const TextStyle(fontWeight: FontWeight.w600),
+						),
+					],
+				),
+			);
+		}
+	}
 
 class _MealSuggestionCard extends StatelessWidget {
 	final MealSuggestion suggestion;
