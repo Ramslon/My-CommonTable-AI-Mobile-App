@@ -17,6 +17,16 @@ class _HealthSyncSettingsScreenState extends State<HealthSyncSettingsScreen> {
   bool _connecting = false;
   String? _status;
 
+  @override
+  void initState() {
+    super.initState();
+    // Show current Fitbit connection status on load
+    _fitbit.isConnected().then((ok) {
+      if (!mounted) return;
+      if (ok) setState(() => _status = 'Fitbit connected');
+    });
+  }
+
   Future<void> _connect() async {
     setState(() { _connecting = true; _status = null; });
     try {
