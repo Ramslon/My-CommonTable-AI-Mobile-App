@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:commontable_ai_app/core/services/app_settings.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -25,7 +26,7 @@ class LowIncomeFeaturesScreen extends StatefulWidget {
 
 class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 	final _budgetCtrl = TextEditingController(text: '5.00');
-	final _currency = NumberFormat.simpleCurrency();
+	late NumberFormat _currency;
 	bool _loadingOffers = false;
 	bool _loadingResources = false;
 	bool _recommending = false;
@@ -40,10 +41,12 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 	@override
 	void initState() {
 		super.initState();
+		_currency = NumberFormat.simpleCurrency();
 		_init();
 	}
 
 	Future<void> _init() async {
+		await _loadCurrency();
 		if (Firebase.apps.isEmpty) {
 			try { await Firebase.initializeApp(); } catch (_) {}
 		}
@@ -53,6 +56,17 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 		await _refreshResources();
 		await _resolveLocation();
 		await _loadMapMarkers();
+	}
+
+	Future<void> _loadCurrency() async {
+		try {
+			final code = (await AppSettings().getCurrencyCode()).toUpperCase();
+			final fmt = NumberFormat.simpleCurrency(name: code);
+			if (mounted) setState(() { _currency = fmt; });
+		} catch (_) {
+			// fallback to default locale currency
+			if (mounted) setState(() { _currency = NumberFormat.simpleCurrency(); });
+		}
 	}
 
 	Future<void> _resolveLocation() async {
@@ -489,9 +503,10 @@ class _LowIncomeFeaturesScreenState extends State<LowIncomeFeaturesScreen> {
 										child: TextField(
 											controller: _budgetCtrl,
 											keyboardType: const TextInputType.numberWithOptions(decimal: true),
-											decoration: const InputDecoration(
+											decoration: InputDecoration(
 												hintText: 'e.g., 5.00',
-												border: OutlineInputBorder(),
+												border: const OutlineInputBorder(),
+												prefixText: '${_currency.currencySymbol} ',
 											),
 										),
 									),
