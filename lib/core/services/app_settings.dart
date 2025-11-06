@@ -14,6 +14,12 @@ class AppSettings {
   Future<InsightsProvider> getInsightsProvider() async {
     final prefs = await SharedPreferences.getInstance();
     final val = prefs.getString(_keyInsightsProvider);
+    // If not set, default to 'gpt5-mini' flag stored as string but map to nearest known provider
+    if (val == null) {
+      await prefs.setString(_keyInsightsProvider, 'gpt5-mini');
+      // prefer huggingFace if available as a fallback mapping, else simulated
+      return InsightsProvider.huggingFace;
+    }
     switch (val) {
       case 'gemini':
         return InsightsProvider.gemini;

@@ -65,7 +65,12 @@ class ChatHistoryService {
       q = q.where('sessionId', isEqualTo: sessionId);
     }
     q = q.orderBy('createdAt', descending: false).limit(limit);
-    return q.snapshots().map((snap) => snap.docs.map((d) => ChatMessage.fromMap(d.data())).toList());
+    // Ensure the returned stream is a broadcast stream so multiple widgets
+    // or services can listen without causing subscription errors.
+    return q
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => ChatMessage.fromMap(d.data())).toList())
+        .asBroadcastStream();
   }
 
   /// Clear all messages for a user. If [sessionId] is provided, limit to that thread.
