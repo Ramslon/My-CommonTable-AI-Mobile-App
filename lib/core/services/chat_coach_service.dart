@@ -49,6 +49,9 @@ class ChatCoachService {
   static String get _hfKey => _env('HF_API_KEY');
   static String get _hfModel =>
       _env('HF_MODEL', def: 'Qwen/Qwen2.5-3B-Instruct');
+  static String get _hfBase =>
+    _env('HF_API_BASE', def: 'https://api-inference.huggingface.co/models');
+  static String get _hfFallbackModel => _env('HF_FALLBACK_MODEL');
 
   ChatProvider get autoProvider {
     if (_geminiKey.isNotEmpty) return ChatProvider.gemini;
@@ -103,6 +106,17 @@ class ChatCoachService {
           final txt = await _callHF(themed, topic: topic);
           return ChatReply(text: txt, provider: chosen);
         } catch (e) {
+          // If HF fails, try OpenAI then Gemini if keys are present before simulated
+          try {
+            if (_openaiKey.isNotEmpty) {
+              final txt = await _callOpenAI(themed, topic: topic);
+              return ChatReply(text: txt, provider: ChatProvider.openai, note: 'HF->OpenAI fallback');
+            }
+            if (_geminiKey.isNotEmpty) {
+              final txt = await _callGemini(themed);
+              return ChatReply(text: txt, provider: ChatProvider.gemini, note: 'HF->Gemini fallback');
+            }
+          } catch (_) {}
           return ChatReply(
             text: _simulate(history, topic),
             provider: ChatProvider.simulated,
@@ -163,6 +177,19 @@ class ChatCoachService {
         yield* _hfStream(themed, topic: topic);
         return;
       } catch (e) {
+        // Try other providers' streaming if available
+        if (_openaiKey.isNotEmpty) {
+          try {
+            yield* _openAIStream(themed, topic: topic);
+            return;
+          } catch (_) {}
+        }
+        if (_geminiKey.isNotEmpty) {
+          try {
+            yield* _geminiStream(themed);
+            return;
+          } catch (_) {}
+        }
         // fall through to non-streaming attempt below
       }
     }
@@ -472,9 +499,7 @@ class ChatCoachService {
     if (_hfKey.isEmpty) {
       throw Exception('Missing HF_API_KEY');
     }
-    final uri = Uri.parse(
-      'https://api-inference.huggingface.co/models/$_hfModel',
-    );
+    final uri = Uri.parse('$_hfBase/$_hfModel');
     final primer = _topicPrimer(topic) ?? '';
     final joined = ([
       if (primer.isNotEmpty) 'SYSTEM: $primer',
@@ -485,14 +510,23 @@ class ChatCoachService {
     req.headers['Authorization'] = 'Bearer $_hfKey';
     req.headers['Content-Type'] = 'application/json';
     req.headers['Accept'] = 'text/event-stream';
+    req.headers['User-Agent'] = 'CommonTableAI/1.0 (chat_hf_stream)';
     req.body = jsonEncode({
       'inputs': prompt,
-      'parameters': {'max_new_tokens': 200, 'temperature': 0.4, 'stream': true},
+      'parameters': {
+        'max_new_tokens': 200,
+        'temperature': 0.4,
+        'stream': true,
+      },
+      'options': {
+        'wait_for_model': true,
+        'use_cache': true
+      }
     });
     final resp = await req.send().timeout(const Duration(seconds: 30));
     if (resp.statusCode < 200 || resp.statusCode >= 300) {
       final err = await resp.stream.bytesToString();
-      throw Exception('HF HTTP ${resp.statusCode}: $err');
+      throw Exception('HF HTTP ${resp.statusCode}: ${_sanitizeHtml(err)}');
     }
     String buffer = '';
     await for (final line
@@ -542,9 +576,7 @@ class ChatCoachService {
     required ChatTopic topic,
   }) async {
     if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
-    final uri = Uri.parse(
-      'https://api-inference.huggingface.co/models/$_hfModel',
-    );
+    final uri = Uri.parse('$_hfBase/$_hfModel');
     final primer = _topicPrimer(topic) ?? '';
     final joined = ([
       if (primer.isNotEmpty) 'SYSTEM: $primer',
@@ -554,14 +586,22 @@ class ChatCoachService {
     final headers = {
       'Authorization': 'Bearer $_hfKey',
       'Content-Type': 'application/json',
+      'User-Agent': 'CommonTableAI/1.0 (chat_hf_call)'
     };
-    final body = jsonEncode({
-      'inputs': prompt,
-      'parameters': {'max_new_tokens': 200, 'temperature': 0.4},
-    });
-    final resp = await http
-        .post(uri, headers: headers, body: body)
-        .timeout(const Duration(seconds: 25));
+    Future<http.Response> _post(Uri u, String model) {
+      final b = jsonEncode({
+        'inputs': prompt,
+        'parameters': {'max_new_tokens': 200, 'temperature': 0.4},
+        'options': {'wait_for_model': true, 'use_cache': true},
+      });
+      return http.post(u, headers: headers, body: b).timeout(const Duration(seconds: 25));
+    }
+    http.Response resp = await _post(uri, _hfModel);
+    // If the API returns 410 or HTML (e.g., <!doctype), try fallback model once if configured
+    if ((resp.statusCode == 410 || _looksHtml(resp.body)) && _hfFallbackModel.isNotEmpty) {
+      final altUri = Uri.parse('$_hfBase/$_hfFallbackModel');
+      resp = await _post(altUri, _hfFallbackModel);
+    }
     if (resp.statusCode >= 200 && resp.statusCode < 300) {
       final data = jsonDecode(resp.body);
       if (data is List && data.isNotEmpty) {
@@ -580,7 +620,18 @@ class ChatCoachService {
       }
       throw Exception('Unexpected HF response shape');
     }
-    throw Exception('HF HTTP ${resp.statusCode}: ${resp.body}');
+    throw Exception('HF HTTP ${resp.statusCode}: ${_sanitizeHtml(resp.body)}');
+  }
+
+  static bool _looksHtml(String s) {
+    final t = s.trimLeft();
+    return t.startsWith('<!doctype') || t.startsWith('<html');
+  }
+
+  static String _sanitizeHtml(String s) {
+    if (!_looksHtml(s)) return s;
+    // Avoid logging huge HTML error bodies; return a concise hint instead.
+    return 'HTML error body (likely proxy/endpoint issue).';
   }
 }
 

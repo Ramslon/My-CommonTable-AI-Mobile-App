@@ -89,18 +89,31 @@ class DiagnosticsService {
   final model = (dotenv.maybeGet('HF_MODEL') ?? '').isNotEmpty
     ? dotenv.get('HF_MODEL')
     : const String.fromEnvironment('HF_MODEL', defaultValue: 'Qwen/Qwen2.5-3B-Instruct');
+  final base = (dotenv.maybeGet('HF_API_BASE') ?? '').isNotEmpty
+    ? dotenv.get('HF_API_BASE')
+    : const String.fromEnvironment('HF_API_BASE', defaultValue: 'https://api-inference.huggingface.co/models');
     if (key.isEmpty) {
       return const ServiceStatus(configured: false, reachable: false, message: 'HF_API_KEY missing');
     }
     try {
-      final uri = Uri.parse('https://api-inference.huggingface.co/models/$model');
-      final headers = {'Authorization': 'Bearer $key', 'Content-Type': 'application/json'};
-      final body = jsonEncode({'inputs': 'ping', 'parameters': {'max_new_tokens': 1}});
+      final uri = Uri.parse('$base/$model');
+      final headers = {
+        'Authorization': 'Bearer $key',
+        'Content-Type': 'application/json',
+        'User-Agent': 'CommonTableAI/1.0 (diag_hf)'
+      };
+      final body = jsonEncode({
+        'inputs': 'ping',
+        'parameters': {'max_new_tokens': 1},
+        'options': {'wait_for_model': true, 'use_cache': true}
+      });
       final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 12));
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         return const ServiceStatus(configured: true, reachable: true, message: 'OK');
       } else {
-        return ServiceStatus(configured: true, reachable: false, message: 'HTTP ${resp.statusCode}: ${resp.body}');
+        final body = resp.body.trimLeft();
+        final msg = body.startsWith('<!doctype') ? 'HTTP ${resp.statusCode}: HTML error (proxy/endpoint)' : 'HTTP ${resp.statusCode}: ${resp.body}';
+        return ServiceStatus(configured: true, reachable: false, message: msg);
       }
     } catch (e) {
       return ServiceStatus(configured: true, reachable: false, message: 'Error: $e');
