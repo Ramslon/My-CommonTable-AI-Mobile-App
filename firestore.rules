@@ -87,15 +87,56 @@ service cloud.firestore {
       allow delete: if isOwner(resource.data.userId);
     }
 
-    // Public, read-only content
+    // Community posts: public read; authenticated users can create their own posts.
+    // Updates are restricted to either the owner OR safe counter increments for
+    // likesCount / commentsCount by any authenticated user.
     match /posts/{id} {
-      allow read: if true; // Adjust if you want private posts
-      allow write: if false; // Keep write-protected by default
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if (
+        // Owner can edit their post
+        isOwner(resource.data.userId)
+      ) || (
+        // Anyone signed-in can +1 likesCount
+        signedIn() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(["likesCount"]) &&
+        request.resource.data["likesCount"] == resource.data["likesCount"] + 1
+      ) || (
+        // Anyone signed-in can +1 commentsCount
+        signedIn() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(["commentsCount"]) &&
+        request.resource.data["commentsCount"] == resource.data["commentsCount"] + 1
+      );
+      // No direct deletes for now (could allow owner delete)
     }
 
+    // Comments subcollection: allow authenticated users to add comments under posts.
+    match /posts/{postId}/comments/{cid} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if signedIn() && request.auth.uid == resource.data.userId;
+      allow update: if false; // immutable comments
+    }
+
+    // Likes subcollection: a user can write only their own like doc
+    match /posts/{postId}/likes/{uid} {
+      allow read: if true;
+      allow write: if signedIn() && uid == request.auth.uid;
+    }
+
+    // Challenges: public read. Allow safe participant count increments and join records.
     match /challenges/{id} {
       allow read: if true;
-      allow write: if false;
+      // Allow only +1 increments to participants field by any authenticated user.
+      allow update: if signedIn() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(["participants"]) &&
+        request.resource.data["participants"] == resource.data["participants"] + 1;
+    }
+
+    // Participants subcollection: users can add their own record
+    match /challenges/{id}/participants/{uid} {
+      allow read: if true;
+      allow write: if signedIn() && uid == request.auth.uid;
     }
   }
 }
