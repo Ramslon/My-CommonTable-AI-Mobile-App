@@ -1,43 +1,75 @@
+<!-- Badges -->
+<p align="center">
+   <a href="https://flutter.dev/"><img src="https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter" alt="Flutter"></a>
+   <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore%20%7C%20RTDB-ffca28?logo=firebase&logoColor=white" alt="Firebase"></a>
+   <a href="#tests"><img src="https://img.shields.io/badge/Tests-passing-brightgreen" alt="Tests"></a>
+   <a href="#license"><img src="https://img.shields.io/badge/License-Private-lightgrey" alt="License"></a>
+</p>
+
 # CommonTable AI Mobile App
 
 Student-first wellness and nutrition companion built with Flutter. It blends meal planning, community features, and a privacy-respecting AI coach powered by Gemini, OpenAI, or Hugging Face.
 
-## Key features
+<!-- Screenshots (add your actual images when available) -->
+<p align="center">
+   <em>Screenshots coming soon (Home · Premium Chat · Community)</em>
+</p>
 
-- Student wellness: meal guidance, budget ideas, mood support, and quick tips
-- Premium Wellness Chat: safe, concise AI coaching with provider fallbacks
-- Community: posts, likes, comments, challenges (rules secured in Firestore)
-- Offline resilience: caching, timeouts, simulated AI when needed
-- Diagnostics screen: quick health checks for AI providers and Supabase
+## What the app does
+
+- Provides budget-friendly meal guidance and mood-based nutrition tips for students
+- Delivers a Premium Wellness Chat experience with safe, concise AI coaching
+- Enables a community space for posts, likes, comments, and challenges
+- Supports offline resilience and diagnostics for quick provider health checks
 
 ## Tech stack
 
 - Flutter/Dart (Android, iOS, Web, Desktop)
 - Firebase: Auth, Firestore, Realtime Database, Messaging, Storage
-- AI providers: Google Gemini, OpenAI, Hugging Face (HF Router)
+- AI providers: Google Gemini, OpenAI, Hugging Face (via HF Router)
 - Optional: Supabase (recipes), Fitbit OAuth template
 
-## Prerequisites
+## Project structure
+
+```
+lib/
+   core/              # Services (AI, payments, privacy, diagnostics, etc.)
+   presentation/      # Screens & widgets (UI)
+   routes/            # App routes
+   firebase_options.dart
+assets/
+   data/              # Mock data / seeded content
+   legal/             # Markdown legal documents
+android/, ios/, web/, macos/, windows/, linux/  # Platform code
+```
+
+## Setup & run locally
+
+<details>
+<summary><strong>1) Prerequisites</strong></summary>
 
 - Flutter SDK (latest stable)
-- Dart (bundled with Flutter)
 - Firebase CLI and FlutterFire CLI
-- A Firebase project (see `lib/firebase_options.dart` is already configured)
+- A Firebase project (see `lib/firebase_options.dart`)
 
-## Quick start
+</details>
 
-1) Install dependencies
+<details>
+<summary><strong>2) Install dependencies</strong></summary>
 
 ```bash
 flutter pub get
 ```
 
-2) Environment variables
+</details>
 
-Create a `.env` at the repository root. Example:
+<details>
+<summary><strong>3) Environment variables (.env)</strong></summary>
+
+Create a `.env` in the repo root:
 
 ```ini
-# AI Providers (set any you plan to use)
+# AI Providers
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.0-flash
 
@@ -49,128 +81,155 @@ HF_API_BASE=https://router.huggingface.co/hf-inference
 HF_MODEL=facebook/bart-large-cnn
 HF_FALLBACK_MODEL=sshleifer/distilbart-cnn-12-6
 
-# Optional integrations
+# Optional
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 CALORIE_NINJAS_KEY=
 
-# Feature flags
+# Flags
 USE_OFFLINE_AI=false
 ```
 
-Notes:
-- Do not commit real keys. Keep `.env` locally or in secure secrets.
-- The app reads `.env` first then `--dart-define` values.
+Notes: never commit real keys. The app reads `.env` first, then `--dart-define`.
 
-3) Firebase: Firestore rules and indexes
+</details>
 
-Rules and indexes are wired in `firebase.json`.
+<details>
+<summary><strong>4) Firebase: Firestore & RTDB</strong></summary>
 
+Firestore:
 ```bash
 firebase login
 firebase use --add        # pick your project (e.g., commonai-app)
 firebase deploy --only firestore
 ```
 
-4) Firebase: Realtime Database rules
-
-First, create a Realtime Database instance in the Console (recommended region: us-central1). Then deploy the rules defined in `database.rules.json`:
-
+Realtime Database:
+1. In Firebase Console, create a Realtime Database (region: us-central1 recommended)
+2. Deploy rules from `database.rules.json`:
 ```bash
 firebase deploy --only database
 ```
 
-By default, the rules allow public read of `local_offers/global` only. To require auth, change that path to `".read": "auth != null"` and redeploy.
+By default, only `local_offers/global` is readable; change to `auth != null` if preferred.
 
-5) Android biometrics
+</details>
 
-- `MainActivity` extends `FlutterFragmentActivity` to support `local_auth`.
-- Manifest includes biometric permissions. If you still can’t authenticate, check enrollment on the device.
+<details>
+<summary><strong>5) Android biometrics</strong></summary>
 
-6) Run the app
+- `MainActivity` extends `FlutterFragmentActivity`
+- Manifest contains biometric permissions
+- The UI handles missing hardware/enrollment and `PlatformException`s
+
+</details>
+
+<details>
+<summary><strong>6) Run & test</strong></summary>
 
 ```bash
 flutter run
 ```
 
-7) Run tests
-
 ```bash
 flutter test
 ```
 
-## Configuration notes
+</details>
 
-- AI provider selection is automatic based on available keys, with fallbacks. HF calls use the Router endpoint and set `wait_for_model`/`use_cache` by default.
-- Diagnostics screen (Settings → Diagnostics) checks Gemini, OpenAI, HF, and Supabase.
-- Offline mode forces simulated AI responses.
+## Connecting the APIs
+
+- Gemini: set `GEMINI_API_KEY`, `GEMINI_MODEL`
+- OpenAI: set `OPENAI_API_KEY`, `OPENAI_MODEL`
+- Hugging Face: set `HF_API_KEY`, `HF_API_BASE` (router), `HF_MODEL`, optional `HF_FALLBACK_MODEL`
+- Supabase: set `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+
+Provider selection is automatic; the app falls back across providers and ultimately to a simulated response for offline mode.
+
+## Build (APK / AAB)
+
+Android APK (unsigned debug):
+```bash
+flutter build apk --debug
+```
+
+Android APK (release):
+```bash
+flutter build apk --release
+```
+
+Android App Bundle (AAB):
+```bash
+flutter build appbundle --release
+```
+
+Signing: configure a keystore and update `android/key.properties` and Gradle signing configs per Flutter docs.
+
+## Testing the APIs (from PowerShell on Windows)
+
+Hugging Face (Router) with `curl.exe`:
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+curl.exe -s -X POST "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn" `
+   -H "Authorization: Bearer $env:HF_API_KEY" `
+   -H "Content-Type: application/json" `
+   -H "Connection: close" `
+   --data "{\"inputs\":\"The quick brown fox...\",\"options\":{\"wait_for_model\":true,\"use_cache\":true}}"
+```
+
+OpenAI:
+```powershell
+Invoke-RestMethod -Method POST -Uri "https://api.openai.com/v1/chat/completions" `
+   -Headers @{Authorization="Bearer $env:OPENAI_API_KEY";"Content-Type"="application/json"} `
+   -Body '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"ping"}],"max_tokens":4}'
+```
+
+Gemini:
+```powershell
+Invoke-RestMethod -Method POST -Uri "https://generativelanguage.googleapis.com/v1beta/models/$env:GEMINI_MODEL:generateContent?key=$env:GEMINI_API_KEY" `
+   -Headers @{"Content-Type"="application/json"} `
+   -Body '{"contents":[{"role":"user","parts":[{"text":"ping"}]}]}'
+```
 
 ## Troubleshooting
 
-### Hugging Face 410 or HTML errors
+Hugging Face 410/HTML:
+- Use Router base; set `wait_for_model` and `use_cache`; prefer `curl.exe` on Windows
 
-- Use the Router base: `HF_API_BASE=https://router.huggingface.co/hf-inference`
-- Ensure a valid `HF_MODEL` and consider `HF_FALLBACK_MODEL`.
-- For PowerShell testing, use `curl.exe` and include `Connection: close`, or use `Invoke-RestMethod`.
+RTDB disconnect/permission:
+- Create the DB instance; deploy `database.rules.json`; verify `databaseURL` in `firebase_options.dart`
 
-### RTDB forced disconnect / permission denied
+Subscriptions PERMISSION_DENIED:
+- Rules allow owner or `resource.data.userId`; code writes include `userId` to `subscriptions/{uid}`
 
-- Confirm your Realtime Database instance exists (Console → Realtime Database → Create Database).
-- Ensure `lib/firebase_options.dart` points at your project’s `databaseURL`.
-- Deploy `database.rules.json` and verify access to `local_offers/global`.
+Android biometrics:
+- FragmentActivity + permissions + UI guards for missing/enrolled hardware
 
-### Firestore PERMISSION_DENIED on subscriptions
+Firebase auth (CLI vs SA):
+- Interactive `firebase login` or service account via `GOOGLE_APPLICATION_CREDENTIALS`
 
-- Subscriptions rules allow reads/writes by doc owner or by `resource.data.userId`.
-- Code writes include `userId` into `subscriptions/{uid}`. Old docs without `userId` may fail queries; re-save them.
+## Challenges & Mitigation
 
-### Android biometrics error (needs FragmentActivity)
+- HF 410 and HTML error bodies → switched to Router, added fallback model, sanitized errors, and provider fallbacks
+- Firestore subscription access issues → rules accept doc owner or `userId`; code writes `userId`
+- Android LocalAuth crash → `FlutterFragmentActivity` + exception handling and support/enrollment checks
+- RTDB forced disconnects → added rules file and docs to create DB instance and deploy rules
 
-- Fixed by extending `FlutterFragmentActivity` and adding permissions.
-- The UI now handles missing hardware/enrollment and common `PlatformException`s.
+## Development plan
 
-### Firebase CLI auth vs service accounts
+Done:
+- Firestore rules/indexes; community gating; subscriptions normalization and deletion; HF Router + fallbacks; biometrics hardening; RTDB rules; analyzer/tests pass
 
-- Interactive: `firebase login` is simplest.
-- Non-interactive: set `GOOGLE_APPLICATION_CREDENTIALS` to a service account JSON from the same Firebase project and run deploys with `--project <id>`.
-
-## Development plan (high-level)
-
-Done
-- Firestore: updated rules (users, preferences, subscriptions with `userId`, consents immutable) and deployed indexes
-- Community: basic rules for posts/comments/likes/challenges; gating on Firebase init
-- Billing/subscriptions: normalized writes with `userId`, deletion path covered
-- HF integration: Router base, fallback model, `wait_for_model`/`use_cache`, HTML error sanitization, provider fallbacks
-- Android: biometric compatibility (FragmentActivity) and UI hardening
-- RTDB: rules file and wiring; global offers path documented
-- Analyzer & tests pass
-
-Next
-- Verify runtime queries after index builds (chat history, diet assessments, mood logs)
-- Optionally switch RTDB `local_offers/global` to auth-only and seed environment data
-- Expand test coverage for privacy flows (export/delete) and community actions
-- CI: add GitHub Actions for analyze/test and optional Firebase deploy
-
-## Optional integrations
-
-### Supabase (recipes)
-
-This app can personalize meal plans using recipe data from a Supabase table.
-
-1. Create a Supabase project and add a `recipes` table with columns:
-   - `name` (text), `calories` (int), `protein` (int), `carbs` (int), `fats` (int)
-2. Set env vars: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
-3. Run the app; the generator merges Supabase items with the local food database
-
-### Fitbit OAuth (template)
-
-1. Create an app at https://dev.fitbit.com/apps and set redirect URI: `commontable.fitbit://auth/callback`
-2. Env vars: `FITBIT_CLIENT_ID`, `FITBIT_REDIRECT_URI` (and optionally `FITBIT_CLIENT_SECRET` if using a backend)
-3. Android manifest placeholders and iOS Info.plist are pre-wired for the callback
+Next:
+- Verify post-index runtime; optionally tighten RTDB reads; expand tests; add CI for analyze/test and optional deploy
 
 ## Contributing
 
-Pull requests welcome. Please run `flutter analyze` and `flutter test` before submitting. For changes touching Firebase rules, include a short note and test steps.
+Pull requests welcome. Run `flutter analyze` and `flutter test` before submitting. For Firebase rules changes, include a test plan.
+
+### Contributors
+
+- Ramson Lunayo — Lead Developer — <ramsonlonayo@gmail.com>
 
 ## License
 
