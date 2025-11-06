@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:flutter/services.dart';
 
 import 'package:commontable_ai_app/core/services/privacy_settings_service.dart';
 import 'package:commontable_ai_app/core/services/data_export_service.dart';
@@ -54,22 +55,33 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
   Future<void> _toggleBiometrics(bool next) async {
     final auth = LocalAuthentication();
-    bool canCheck = await auth.canCheckBiometrics || await auth.isDeviceSupported();
-    if (!canCheck) {
-      _showSnack('Biometric authentication is not available on this device.');
-      return;
+    try {
+      final deviceSupported = await auth.isDeviceSupported();
+      final canCheck = await auth.canCheckBiometrics;
+      final available = await auth.getAvailableBiometrics();
+
+      if (next) {
+        if (!deviceSupported || (!canCheck && available.isEmpty)) {
+          _showSnack('Biometric authentication is not available or not enrolled.');
+          return;
+        }
+        final ok = await auth.authenticate(
+          localizedReason: 'Enable biometric lock for secure access',
+          options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
+        );
+        if (!ok) return;
+      }
+
+      await _update(_s!.copyWith(
+        biometricLockEnabled: next,
+        updatedAt: DateTime.now(),
+      ));
+    } on PlatformException catch (e) {
+      // Common codes: notAvailable, notEnrolled, passcodeNotSet, lockedOut, permanentlyLockedOut
+      _showSnack('Biometric error: ${e.code}');
+    } catch (_) {
+      _showSnack('Biometric error. Please try again.');
     }
-    if (next) {
-      final ok = await auth.authenticate(
-        localizedReason: 'Enable biometric lock for secure access',
-        options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
-      );
-      if (!ok) return;
-    }
-    await _update(_s!.copyWith(
-      biometricLockEnabled: next,
-      updatedAt: DateTime.now(),
-    ));
   }
 
   void _showSnack(String msg) {
