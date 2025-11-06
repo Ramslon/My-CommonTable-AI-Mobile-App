@@ -20,9 +20,14 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
-    // Subscription doc per uid
+    // Subscriptions: one doc per user (docId may be uid). Support legacy docs that store userId field.
     match /subscriptions/{uid} {
-      allow read, write: if isOwner(uid);
+      // Allow reads if the requester owns the doc by path OR by stored userId field
+      allow read: if isOwner(uid) || (signedIn() && resource.data.userId == request.auth.uid);
+      // Allow creates/updates if the write targets own path OR sets userId to requester
+      allow create, update: if isOwner(uid) || (signedIn() && request.resource.data.userId == request.auth.uid);
+      // Allow deletes only by owner (by path) or owner-of-data
+      allow delete: if isOwner(uid) || (signedIn() && resource.data.userId == request.auth.uid);
     }
 
     // Profiles: public read, owner write
@@ -137,6 +142,14 @@ service cloud.firestore {
     match /challenges/{id}/participants/{uid} {
       allow read: if true;
       allow write: if signedIn() && uid == request.auth.uid;
+    }
+
+    // Consents: immutable audit trail of user consent changes
+    match /consents/{id} {
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if false; // immutable
+      allow delete: if false;
     }
   }
 }

@@ -96,11 +96,20 @@ class PaymentsService {
   }
 
   Future<void> _saveSubscription(String tier) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    // Ensure we have an authenticated user (anonymous if needed)
+    var user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      try {
+        final cred = await FirebaseAuth.instance.signInAnonymously();
+        user = cred.user;
+      } catch (_) {}
+    }
+    final uid = user?.uid ?? 'anonymous';
     await FirebaseFirestore.instance
         .collection('subscriptions')
-        .doc(uid ?? 'anonymous')
+        .doc(uid)
         .set({
+          'userId': uid,
           'tier': tier,
           'updatedAt': DateTime.now().toIso8601String(),
           'provider': _provider.name,

@@ -199,11 +199,12 @@ class _PremiumFeaturesScreenState extends State<PremiumFeaturesScreen> {
 			ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sign in required to save subscription.')));
 			return;
 		}
-		try {
-			await FirebaseFirestore.instance.collection('subscriptions').doc(uid).set({
-				'tier': tier,
-				'updatedAt': DateTime.now().toIso8601String(),
-			}, SetOptions(merge: true));
+			try {
+				await FirebaseFirestore.instance.collection('subscriptions').doc(uid).set({
+					'userId': uid,
+					'tier': tier,
+					'updatedAt': DateTime.now().toIso8601String(),
+				}, SetOptions(merge: true));
 			await AppSettings().setSubscriptionTier(tier);
 			if (mounted) setState(() => _tier = tier);
 			if (!mounted) return;

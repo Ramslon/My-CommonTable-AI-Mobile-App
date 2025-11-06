@@ -27,6 +27,9 @@ class AccountService {
       // If more than 500 documents exist, caller could loop; skipped for simplicity.
     }
 
+    // Ensure subscription doc keyed by uid is deleted even if it lacked userId field
+    await _db.collection('subscriptions').doc(uid).delete().catchError((_) {});
+
     // Delete user profile doc
     await _db.collection('users').doc(uid).delete().catchError((_) {});
 
