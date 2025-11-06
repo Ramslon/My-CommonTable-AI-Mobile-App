@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:commontable_ai_app/core/models/community_models.dart';
 import 'package:commontable_ai_app/core/services/firebase_boot.dart';
@@ -22,7 +23,7 @@ class CommunityService {
   }
 
   Stream<List<CommunityPost>> streamFeed() {
-    if (!FirebaseBoot.available) {
+    if (Firebase.apps.isEmpty) {
       // Local simulated feed
       final demo = [
         CommunityPost(
@@ -52,7 +53,7 @@ class CommunityService {
     String? imageUrl,
     List<String> tags = const [],
   }) async {
-    if (!FirebaseBoot.available) return; // no-op in local-only mode
+  if (Firebase.apps.isEmpty) return; // no-op if Firebase not initialized
     final uid = await _ensureAuth();
     if (uid == null) return;
     await _fs.collection('posts').add({
@@ -70,7 +71,7 @@ class CommunityService {
   }
 
   Future<void> likePost(String postId) async {
-    if (!FirebaseBoot.available) return;
+  if (Firebase.apps.isEmpty) return;
     final uid = await _ensureAuth();
     if (uid == null) return;
     final likeRef = _fs
@@ -91,7 +92,7 @@ class CommunityService {
   }
 
   Stream<List<CommunityComment>> streamComments(String postId) {
-    if (!FirebaseBoot.available) {
+  if (Firebase.apps.isEmpty) {
       final demo = [
         CommunityComment(
           id: 'c1',
@@ -116,7 +117,7 @@ class CommunityService {
   }
 
   Future<void> addComment(String postId, String text) async {
-    if (!FirebaseBoot.available) return;
+  if (Firebase.apps.isEmpty) return;
     final uid = await _ensureAuth();
     if (uid == null) return;
     final ref = _fs.collection('posts').doc(postId).collection('comments');
@@ -178,7 +179,7 @@ class CommunityService {
   }
 
   Stream<UserProfile> streamMyProfile() {
-    if (!FirebaseBoot.available || _uid == null) {
+  if (Firebase.apps.isEmpty || _uid == null) {
       return Stream.value(
         UserProfile(userId: _uid ?? 'anon', displayName: 'Guest'),
       ).asBroadcastStream();
@@ -194,7 +195,7 @@ class CommunityService {
     String? bio,
     String? photoUrl,
   }) async {
-    if (!FirebaseBoot.available) return;
+  if (Firebase.apps.isEmpty) return;
     final uid = await _ensureAuth();
     if (uid == null) return;
     final data = <String, dynamic>{};

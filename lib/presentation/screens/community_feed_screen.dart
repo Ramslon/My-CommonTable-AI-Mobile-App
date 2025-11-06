@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:commontable_ai_app/core/models/community_models.dart';
 import 'package:commontable_ai_app/core/services/community_service.dart';
 import 'package:commontable_ai_app/core/services/community_recommendation_service.dart';
 import 'package:commontable_ai_app/core/services/content_moderation_service.dart';
-import 'package:commontable_ai_app/core/services/firebase_boot.dart';
+// Removed direct gating by FirebaseBoot.available; we now rely on Firebase.apps presence.
 import 'package:image_picker/image_picker.dart';
 import 'package:commontable_ai_app/core/services/storage_service.dart';
 
@@ -112,18 +113,18 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                   controller: _postCtrl,
                   maxLines: 2,
                   decoration: InputDecoration(
-                    hintText: FirebaseBoot.available
+          hintText: Firebase.apps.isNotEmpty
                         ? 'Share a healthy tip or recipe…'
                         : 'Local mode: posting disabled',
                     border: const OutlineInputBorder(),
                   ),
-                  enabled: FirebaseBoot.available,
+                  enabled: Firebase.apps.isNotEmpty,
                 ),
               ),
               const SizedBox(width: 8),
               IconButton(
                 tooltip: 'Add photo',
-                onPressed: FirebaseBoot.available
+        onPressed: Firebase.apps.isNotEmpty
                     ? () async {
                         final picker = ImagePicker();
                         final x = await picker.pickImage(
@@ -139,7 +140,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                 icon: const Icon(Icons.add_a_photo_outlined),
               ),
               ElevatedButton.icon(
-                onPressed: FirebaseBoot.available ? _submitPost : null,
+                onPressed: Firebase.apps.isNotEmpty ? _submitPost : null,
                 icon: const Icon(Icons.send_outlined),
                 label: const Text('Post'),
               ),
@@ -233,7 +234,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                             Text('${c.participants} joined'),
                             const Spacer(),
                             ElevatedButton(
-                              onPressed: FirebaseBoot.available
+                onPressed: Firebase.apps.isNotEmpty
                                   ? () => _svc.joinChallenge(c.id)
                                   : null,
                               child: const Text('Join'),
@@ -334,7 +335,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen>
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: FirebaseBoot.available
+          onPressed: Firebase.apps.isNotEmpty
                         ? () => _openEditProfile(p)
                         : null,
                     icon: const Icon(Icons.edit_outlined),
@@ -664,7 +665,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: FirebaseBoot.available
+          onPressed: Firebase.apps.isNotEmpty
                         ? () async {
                             final txt = _ctrl.text.trim();
                             if (txt.isEmpty) return;
