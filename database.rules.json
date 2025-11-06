@@ -1,0 +1,12 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "local_offers": {
+      "global": {
+        ".read": true,
+        ".write": false
+      }
+    }
+  }
+}
