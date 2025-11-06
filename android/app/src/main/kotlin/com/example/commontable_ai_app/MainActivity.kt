@@ -1,5 +1,7 @@
 package com.example.commontable_ai_app
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// Use FlutterFragmentActivity so plugins that require a FragmentActivity
+// (e.g., local_auth for biometrics) work correctly.
+class MainActivity : FlutterFragmentActivity()
