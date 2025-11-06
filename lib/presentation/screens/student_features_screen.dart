@@ -383,7 +383,7 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
       if (await _isOffline()) {
         if (_deals.isEmpty) {
           final list = await _loadDealsFromAssets();
-          setState(() => _deals = _sortByDistance(list));
+          if (mounted) setState(() => _deals = _sortByDistance(list));
         }
         return;
       }
@@ -404,18 +404,18 @@ class _StudentFeaturesScreenState extends State<StudentFeaturesScreen> {
             list.add(_LocalOffer.fromMap(Map<String, dynamic>.from(item)));
         });
       }
-      setState(() => _deals = _sortByDistance(list));
+      if (mounted) setState(() => _deals = _sortByDistance(list));
       await _cacheDeals();
     } on TimeoutException {
       if (_deals.isEmpty) {
         final list = await _loadDealsFromAssets();
-        setState(() => _deals = _sortByDistance(list));
+        if (mounted) setState(() => _deals = _sortByDistance(list));
       }
       _notify('Deals request timed out — showing offline results');
     } catch (_) {
       if (_deals.isEmpty) {
         final list = await _loadDealsFromAssets();
-        setState(() => _deals = _sortByDistance(list));
+        if (mounted) setState(() => _deals = _sortByDistance(list));
       }
     } finally {
       if (mounted) setState(() => _loadingDeals = false);

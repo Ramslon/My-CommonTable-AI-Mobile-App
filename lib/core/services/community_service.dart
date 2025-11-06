@@ -25,7 +25,8 @@ class CommunityService {
           tags: const ['welcome', 'healthy'],
         ),
       ];
-      return Stream<List<CommunityPost>>.value(demo);
+      // Use broadcast so multiple widgets can listen safely in local mode
+      return Stream<List<CommunityPost>>.value(demo).asBroadcastStream();
     }
     return _fs
         .collection('posts')
@@ -91,7 +92,7 @@ class CommunityService {
           createdAt: DateTime.now(),
         ),
       ];
-      return Stream.value(demo);
+      return Stream.value(demo).asBroadcastStream();
     }
     return _fs
         .collection('posts')
@@ -133,7 +134,7 @@ class CommunityService {
           participants: 24,
         ),
       ];
-      return Stream.value(demo);
+      return Stream.value(demo).asBroadcastStream();
     }
     return _fs
         .collection('challenges')
@@ -171,7 +172,7 @@ class CommunityService {
     if (!FirebaseBoot.available || _uid == null) {
       return Stream.value(
         UserProfile(userId: _uid ?? 'anon', displayName: 'Guest'),
-      );
+      ).asBroadcastStream();
     }
     return _fs.collection('profiles').doc(_uid).snapshots().map((d) {
       if (!d.exists) return UserProfile(userId: _uid!, displayName: 'User');
@@ -206,7 +207,7 @@ class CommunityService {
           badges: const ['Starter'],
         ),
       ];
-      return Stream.value(demo);
+      return Stream.value(demo).asBroadcastStream();
     }
     return _fs
         .collection('profiles')
