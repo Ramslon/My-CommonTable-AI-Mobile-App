@@ -91,7 +91,7 @@ class DiagnosticsService {
     : const String.fromEnvironment('HF_MODEL', defaultValue: 'Qwen/Qwen2.5-3B-Instruct');
   final base = (dotenv.maybeGet('HF_API_BASE') ?? '').isNotEmpty
     ? dotenv.get('HF_API_BASE')
-    : const String.fromEnvironment('HF_API_BASE', defaultValue: 'https://api-inference.huggingface.co/models');
+    : const String.fromEnvironment('HF_API_BASE', defaultValue: 'https://router.huggingface.co/hf-inference/models');
     if (key.isEmpty) {
       return const ServiceStatus(configured: false, reachable: false, message: 'HF_API_KEY missing');
     }

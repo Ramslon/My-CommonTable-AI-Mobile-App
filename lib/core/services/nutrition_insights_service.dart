@@ -40,6 +40,7 @@ class NutritionInsightsService {
   static String get _geminiModel => _env('GEMINI_MODEL', def: 'gemini-1.5-flash');
   static String get _hfKey => _env('HF_API_KEY');
   static String get _hfModel => _env('HF_MODEL', def: 'Qwen/Qwen2.5-3B-Instruct');
+  static String get _hfBase => _env('HF_API_BASE', def: 'https://router.huggingface.co/hf-inference/models');
   static String get _openaiKey => _env('OPENAI_API_KEY').isNotEmpty ? _env('OPENAI_API_KEY') : _env('OPENAI_KEY');
   static String get _openaiModel => _env('OPENAI_MODEL', def: 'gpt-4o-mini');
 
@@ -226,13 +227,17 @@ class NutritionInsightsService {
   Future<String> _callHuggingFace(Map<String, double> intake) async {
     if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
     final model = _hfModel;
-    final uri = Uri.parse('https://api-inference.huggingface.co/models/$model');
+    final uri = Uri.parse('$_hfBase/$model');
     final prompt = _buildPrompt(intake);
     final headers = {
       'Authorization': 'Bearer $_hfKey',
       'Content-Type': 'application/json',
     };
-    final body = jsonEncode({'inputs': prompt, 'parameters': {'max_new_tokens': 180, 'temperature': 0.3}});
+    final body = jsonEncode({
+      'inputs': prompt,
+      'parameters': {'max_new_tokens': 180, 'temperature': 0.3},
+      'options': {'wait_for_model': true, 'use_cache': true}
+    });
 
     final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 20));
 
@@ -319,12 +324,16 @@ class NutritionInsightsService {
   Future<String> _callHFWithPrompt(String prompt) async {
     if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
     final model = _hfModel;
-    final uri = Uri.parse('https://api-inference.huggingface.co/models/$model');
+    final uri = Uri.parse('$_hfBase/$model');
     final headers = {
       'Authorization': 'Bearer $_hfKey',
       'Content-Type': 'application/json',
     };
-    final body = jsonEncode({'inputs': prompt, 'parameters': {'max_new_tokens': 220, 'temperature': 0.3}});
+    final body = jsonEncode({
+      'inputs': prompt,
+      'parameters': {'max_new_tokens': 220, 'temperature': 0.3},
+      'options': {'wait_for_model': true, 'use_cache': true}
+    });
 
     final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 20));
     if (resp.statusCode >= 200 && resp.statusCode < 300) {
@@ -530,7 +539,7 @@ class NutritionInsightsService {
   }) async {
     if (_hfKey.isEmpty) throw Exception('Missing HF_API_KEY');
     final model = _hfModel;
-    final uri = Uri.parse('https://api-inference.huggingface.co/models/$model');
+    final uri = Uri.parse('$_hfBase/$model');
     final prompt = _buildMoodPrompt(
       mood: mood,
       region: region,
@@ -542,7 +551,11 @@ class NutritionInsightsService {
       'Authorization': 'Bearer $_hfKey',
       'Content-Type': 'application/json',
     };
-    final body = jsonEncode({'inputs': prompt, 'parameters': {'max_new_tokens': 180, 'temperature': 0.3}});
+    final body = jsonEncode({
+      'inputs': prompt,
+      'parameters': {'max_new_tokens': 180, 'temperature': 0.3},
+      'options': {'wait_for_model': true, 'use_cache': true}
+    });
 
     final resp = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 20));
 

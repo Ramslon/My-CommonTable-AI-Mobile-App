@@ -50,7 +50,7 @@ class ChatCoachService {
   static String get _hfModel =>
       _env('HF_MODEL', def: 'Qwen/Qwen2.5-3B-Instruct');
   static String get _hfBase =>
-    _env('HF_API_BASE', def: 'https://api-inference.huggingface.co/models');
+    _env('HF_API_BASE', def: 'https://router.huggingface.co/hf-inference/models');
   static String get _hfFallbackModel => _env('HF_FALLBACK_MODEL');
 
   ChatProvider get autoProvider {
