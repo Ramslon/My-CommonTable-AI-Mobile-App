@@ -15,21 +15,21 @@ Student-first wellness and nutrition companion built with Flutter. It blends mea
    <em>Screenshots coming soon (Home · Premium Chat · Community)</em>
 </p>
 
-## What the app does
+## ✨ What the app does
 
 - Provides budget-friendly meal guidance and mood-based nutrition tips for students
 - Delivers a Premium Wellness Chat experience with safe, concise AI coaching
 - Enables a community space for posts, likes, comments, and challenges
 - Supports offline resilience and diagnostics for quick provider health checks
 
-## Tech stack
+## 🧰 Tech stack
 
 - Flutter/Dart (Android, iOS, Web, Desktop)
 - Firebase: Auth, Firestore, Realtime Database, Messaging, Storage
 - AI providers: Google Gemini, OpenAI, Hugging Face (via HF Router)
 - Optional: Supabase (recipes), Fitbit OAuth template
 
-## Project structure
+## 🗂️ Project structure
 
 ```
 lib/
@@ -43,10 +43,10 @@ assets/
 android/, ios/, web/, macos/, windows/, linux/  # Platform code
 ```
 
-## Setup & run locally
+## 🚀 Setup & run locally
 
 <details>
-<summary><strong>1) Prerequisites</strong></summary>
+<summary><strong>📋 1) Prerequisites</strong></summary>
 
 - Flutter SDK (latest stable)
 - Firebase CLI and FlutterFire CLI
@@ -55,7 +55,7 @@ android/, ios/, web/, macos/, windows/, linux/  # Platform code
 </details>
 
 <details>
-<summary><strong>2) Install dependencies</strong></summary>
+<summary><strong>📦 2) Install dependencies</strong></summary>
 
 ```bash
 flutter pub get
@@ -64,7 +64,7 @@ flutter pub get
 </details>
 
 <details>
-<summary><strong>3) Environment variables (.env)</strong></summary>
+<summary><strong>🔐 3) Environment variables (.env)</strong></summary>
 
 Create a `.env` in the repo root:
 
@@ -95,7 +95,7 @@ Notes: never commit real keys. The app reads `.env` first, then `--dart-define`.
 </details>
 
 <details>
-<summary><strong>4) Firebase: Firestore & RTDB</strong></summary>
+<summary><strong>🔥 4) Firebase: Firestore & RTDB</strong></summary>
 
 Firestore:
 ```bash
@@ -116,7 +116,7 @@ By default, only `local_offers/global` is readable; change to `auth != null` if 
 </details>
 
 <details>
-<summary><strong>5) Android biometrics</strong></summary>
+<summary><strong>🔒 5) Android biometrics</strong></summary>
 
 - `MainActivity` extends `FlutterFragmentActivity`
 - Manifest contains biometric permissions
@@ -125,7 +125,7 @@ By default, only `local_offers/global` is readable; change to `auth != null` if 
 </details>
 
 <details>
-<summary><strong>6) Run & test</strong></summary>
+<summary><strong>▶️ 6) Run & test</strong></summary>
 
 ```bash
 flutter run
@@ -137,7 +137,7 @@ flutter test
 
 </details>
 
-## Connecting the APIs
+## 🔌 Connecting the APIs
 
 - Gemini: set `GEMINI_API_KEY`, `GEMINI_MODEL`
 - OpenAI: set `OPENAI_API_KEY`, `OPENAI_MODEL`
@@ -146,7 +146,7 @@ flutter test
 
 Provider selection is automatic; the app falls back across providers and ultimately to a simulated response for offline mode.
 
-## Build (APK / AAB)
+## 🏗️ Build (APK / AAB)
 
 Android APK (unsigned debug):
 ```bash
@@ -165,7 +165,8 @@ flutter build appbundle --release
 
 Signing: configure a keystore and update `android/key.properties` and Gradle signing configs per Flutter docs.
 
-## Testing the APIs (from PowerShell on Windows)
+<a name="tests"></a>
+## 🧪 Testing the APIs (from PowerShell on Windows)
 
 Hugging Face (Router) with `curl.exe`:
 ```powershell
@@ -191,7 +192,7 @@ Invoke-RestMethod -Method POST -Uri "https://generativelanguage.googleapis.com/v
    -Body '{"contents":[{"role":"user","parts":[{"text":"ping"}]}]}'
 ```
 
-## Troubleshooting
+## 🧯 Troubleshooting
 
 Hugging Face 410/HTML:
 - Use Router base; set `wait_for_model` and `use_cache`; prefer `curl.exe` on Windows
@@ -208,14 +209,14 @@ Android biometrics:
 Firebase auth (CLI vs SA):
 - Interactive `firebase login` or service account via `GOOGLE_APPLICATION_CREDENTIALS`
 
-## Challenges & Mitigation
+## 🛡️ Challenges & Mitigation
 
 - HF 410 and HTML error bodies → switched to Router, added fallback model, sanitized errors, and provider fallbacks
 - Firestore subscription access issues → rules accept doc owner or `userId`; code writes `userId`
 - Android LocalAuth crash → `FlutterFragmentActivity` + exception handling and support/enrollment checks
 - RTDB forced disconnects → added rules file and docs to create DB instance and deploy rules
 
-## Development plan
+## 🧭 Development plan
 
 Done:
 - Firestore rules/indexes; community gating; subscriptions normalization and deletion; HF Router + fallbacks; biometrics hardening; RTDB rules; analyzer/tests pass
@@ -223,14 +224,15 @@ Done:
 Next:
 - Verify post-index runtime; optionally tighten RTDB reads; expand tests; add CI for analyze/test and optional deploy
 
-## Contributing
+## 🤝 Contributing
 
 Pull requests welcome. Run `flutter analyze` and `flutter test` before submitting. For Firebase rules changes, include a test plan.
 
-### Contributors
+### 👥 Contributors
 
 - Ramson Lunayo — Lead Developer — <ramsonlonayo@gmail.com>
 
-## License
+<a name="license"></a>
+## 📄 License
 
 Proprietary — All rights reserved. Contact the repository owner for licensing options.
