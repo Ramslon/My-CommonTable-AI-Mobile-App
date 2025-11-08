@@ -2,6 +2,8 @@
 <p align="center">
    <a href="https://flutter.dev/"><img src="https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter" alt="Flutter"></a>
    <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore%20%7C%20RTDB-ffca28?logo=firebase&logoColor=white" alt="Firebase"></a>
+   <a href="https://github.com/Ramslon/My-CommonTable-AI-Mobile-App/actions/workflows/android-apk.yml"><img src="https://github.com/Ramslon/My-CommonTable-AI-Mobile-App/actions/workflows/android-apk.yml/badge.svg?branch=main" alt="APK CI"></a>
+   <a href="https://github.com/Ramslon/My-CommonTable-AI-Mobile-App/actions/workflows/android-release.yml"><img src="https://github.com/Ramslon/My-CommonTable-AI-Mobile-App/actions/workflows/android-release.yml/badge.svg?branch=main" alt="AAB CI"></a>
    <a href="#tests"><img src="https://img.shields.io/badge/Tests-passing-brightgreen" alt="Tests"></a>
    <a href="#license"><img src="https://img.shields.io/badge/License-Private-lightgrey" alt="License"></a>
 </p>
@@ -164,6 +166,30 @@ flutter build appbundle --release
 ```
 
 Signing: configure a keystore and update `android/key.properties` and Gradle signing configs per Flutter docs.
+
+## 🔄 CI/CD: Android APK & AAB via GitHub Actions
+
+- APK workflow: `.github/workflows/android-apk.yml`
+   - Triggers: manual (Run workflow) and tags like `v1.0.0`
+   - Outputs: APK as build artifact on any run; attaches APK to a GitHub Release on tag
+- AAB workflow: `.github/workflows/android-release.yml`
+   - Triggers: push to `main` and manual (Run workflow)
+   - Outputs: AAB as build artifact
+
+Where to find builds:
+- GitHub Releases (tagged runs): https://github.com/Ramslon/My-CommonTable-AI-Mobile-App/releases
+- Workflow Artifacts (any run): Actions → select a run → Artifacts
+
+Creating a tagged Release (from PowerShell):
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Optional signing (production keystore):
+- Add repo secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`
+- The APK workflow decodes `key.properties`; update `android/app/build.gradle.kts` to use it for release signing when present
 
 <a name="tests"></a>
 ## 🧪 Testing the APIs (from PowerShell on Windows)
